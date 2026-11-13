@@ -1,0 +1,12 @@
+build/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.raw
+crash.log
+*.log
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,23 @@
+END USER LICENSE AGREEMENT - Orderwick
+(Template written for the author. It is not legal advice: have a lawyer review it before release.)
+
+1. License. The copyright holder grants you a personal, non-exclusive, non-transferable license to install and play
+   one copy of the game on devices you own or control, for non-commercial entertainment.
+2. Restrictions. You may not copy, sell, rent, sublicense or distribute the game or its assets; modify or create
+   derivative works; or remove copyright notices. You may not reverse engineer or decompile the game, except to the
+   extent that applicable law allows it despite this restriction, and except that you may replace the open-source
+   libraries that ship with the game as their own licenses (see THIRD_PARTY_NOTICES.txt) permit.
+3. Ownership. The game, its art, music and sound effects remain the property of the copyright holder. Third-party
+   components remain under their own licenses.
+4. Saved data and online features. By default the game stores your progress, settings and scores on your device only
+   and does not collect or send personal data. Online features (ranked runs, daily challenge, online leaderboard) are
+   optional, are off until you turn them on in the game's Online screen, and are only available when the game has been
+   configured with a server address. The Online screen lists exactly what is sent before you agree; the privacy policy
+   (linked there) explains how it is used, how long it is kept, and how you can export or delete it. You can turn
+   online features off at any time and the game keeps working offline.
+5. No warranty. The game is provided "as is", without warranty of any kind. To the maximum extent permitted by law the
+   copyright holder is not liable for damages arising from its use.
+6. Platform terms. If you obtained the game through a store (for example itch.io), the store's terms also apply, and
+   they prevail over this agreement where they conflict.
+7. Governing law. The law of the copyright holder's country of residence, unless mandatory consumer law says otherwise.
+8. Contact. Milan Vasovic, vasovicmilanbiz@gmail.com.

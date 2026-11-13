@@ -1,0 +1,10 @@
+Copyright (c) 2026 Milan Vasovic <vasovicmilanbiz@gmail.com>. All rights reserved.
+
+"Orderwick" (the game): its source code, original pixel art (card sprites, board, HUD, icons, achievement art),
+level design, text and user interface are the proprietary property of the copyright holder.
+No part may be copied, modified, redistributed or sold without written permission, except as allowed by the
+End User License Agreement (EULA.txt) that comes with the game, or by law.
+
+Third-party components that ship with the game (pygame-ce, SDL and related libraries, fonts) are NOT covered by this
+notice. They remain under their own licenses, listed in THIRD_PARTY_NOTICES.txt; their license texts are in the
+"licenses" folder.
