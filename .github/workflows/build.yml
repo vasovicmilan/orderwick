@@ -1,0 +1,112 @@
+name: build
+
+# Push a tag like v0.2.0  -> builds Windows, Linux and macOS (Apple silicon + Intel), tests every build, and publishes
+#                            a GitHub Release with the files (download them there and upload them to itch.io).
+# Run it by hand (Actions -> build -> Run workflow) -> the same builds, kept as artifacts for 30 days, no release.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pillow
+      - name: unit tests
+        run: python -m unittest discover -s tests -q
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04: older glibc => the build also runs on older Linux distributions
+          - { os: ubuntu-22.04, label: linux }
+          - { os: windows-latest, label: windows }
+          - { os: macos-14, label: macos-arm64 }        # Apple silicon
+          - { os: macos-13, label: macos-x64 }          # Intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller pillow
+      - name: build + selftest
+        run: python packaging/build.py
+      - name: play one board with the packaged game (Linux smoke test)
+        # The built game is started like a user would start it, inside a virtual screen. Claude's player (--agent) presses
+        # the keys: the menu, a board, a win, the end of the run. This proves the packaged file really plays, not only starts.
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+          xvfb-run -a -s "-screen 0 1280x800x24" dist/Orderwick/Orderwick --agent --mode campaign --boards 1 --pace 0.02
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orderwick-${{ matrix.label }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          retention-days: 30
+          if-no-files-found: error
+
+  release:
+    # Only for a tag: collects the four files into one GitHub Release page.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}      # optional: itch.io upload (see docs/BUILD.md)
+      ITCH_TARGET: ${{ vars.ITCH_TARGET }}               # optional: "yourname/orderwick"
+      ORDERWICK_URL: ${{ secrets.ORDERWICK_URL }}        # optional: the Orderwick server (download page)
+      ORDERWICK_ADMIN_TOKEN: ${{ secrets.ORDERWICK_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - run: ls -la files
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: files/*
+          generate_release_notes: true
+      - name: push to itch.io (optional)
+        if: ${{ env.BUTLER_API_KEY != '' && env.ITCH_TARGET != '' }}
+        run: |
+          curl -sSL -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler && chmod +x butler/butler
+          VERSION=$(python3 -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('orderwick/config.py').read()).group(1))")
+          for f in files/*; do
+            case "$f" in
+              *windows*) CH=windows;; *linux*) CH=linux;; *macos-arm64*) CH=mac-arm64;; *macos-x64*) CH=mac-x64;; *) continue;;
+            esac
+            butler/butler push "$f" "$ITCH_TARGET:$CH" --userversion "$VERSION"
+          done
+      - name: upload to the Orderwick server (optional)
+        if: ${{ env.ORDERWICK_URL != '' && env.ORDERWICK_ADMIN_TOKEN != '' }}
+        run: |
+          VERSION=$(python3 -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('orderwick/config.py').read()).group(1))")
+          for f in files/*; do
+            case "$f" in
+              *windows*) PLATFORM=windows;; *linux*) PLATFORM=linux;; *macos-arm64*) PLATFORM=macos;; *) continue;;
+            esac
+            curl --fail -sS -X PUT "$ORDERWICK_URL/api/v1/admin/builds/$VERSION/$PLATFORM" \
+              -H "Authorization: Bearer $ORDERWICK_ADMIN_TOKEN" -H "X-Filename: $(basename "$f")" \
+              --data-binary @"$f"
+          done
