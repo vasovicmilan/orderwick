@@ -37,7 +37,15 @@ def main() -> None:
         shutil.copytree(ROOT / "licenses", target / "licenses", dirs_exist_ok=True)
     # check that the build works before packaging it
     exe = (target / "Contents" / "MacOS" / "Orderwick") if system == "macos" else target / ("Orderwick.exe" if system == "windows" else "Orderwick")
-    subprocess.run([str(exe), "--selftest"], check=True)
+    # Output is captured: a windowed Windows exe has no console of its own, and a hang must end with a message, not run for hours.
+    try:
+        res = subprocess.run([str(exe), "--selftest"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=150)
+    except subprocess.TimeoutExpired as exc:
+        print("SELFTEST TIMEOUT\n", exc.stdout or "", exc.stderr or "")
+        raise SystemExit(1)
+    print(res.stdout, res.stderr)
+    if res.returncode != 0:
+        raise SystemExit(f"selftest failed with code {res.returncode}")
     if system == "linux":
         with tarfile.open(dist / f"{name}.tar.gz", "w:gz") as tar:
             tar.add(target, arcname="Orderwick")

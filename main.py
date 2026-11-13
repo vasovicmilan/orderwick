@@ -9,6 +9,11 @@ def selftest() -> int:
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
     os.environ.setdefault("ORDERWICK_AUDIO", "off")
+    # A hang must never block a build for hours: after 90 s print where every thread is stuck and stop with an error.
+    try:
+        faulthandler.dump_traceback_later(90, exit=True, file=sys.__stderr__ or sys.stderr)
+    except Exception:                                      # a windowed Windows exe may have no stderr at all
+        pass
     import tempfile
     os.environ.setdefault("ORDERWICK_HOME", tempfile.mkdtemp())
     import pygame
@@ -16,7 +21,9 @@ def selftest() -> int:
     from orderwick.game import OrderwickGame
     from orderwick.scenes import (about, achievements, custom, daily, help as help_, leaderboard,
                                  level_select, menu, online, online_leaderboard, settings)
+    print("selftest: starting", flush=True)
     app = OrderwickGame()
+    print("selftest: game created", flush=True)
     app.screen = pygame.display.set_mode((960, 600))
     for name in [n for names in config.CARD_FAMILIES.values() for n in names]:
         assert app.assets.sprite(name).get_size() == (16, 16), name
