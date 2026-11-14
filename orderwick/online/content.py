@@ -35,7 +35,7 @@ _PATH_RE = re.compile(
     rf"|avatars/{_NAME}\.png"
     rf"|music/{_NAME}\.ogg"
     rf"|card_styles/{_NAME}/[a-z0-9_]{{2,40}}\.png"
-    rf"|themes/{_NAME}/(board/board\.png|hud/(panel|inset|button|divider|icons|icons_audio)\.png|palette\.json))$")
+    rf"|themes/{_NAME}/(board/board\.png|hud/(panel|inset|button|divider|icons|icons_audio)\.png|palette\.json|frame\.json))$")
 
 
 def safe_path(rel: str) -> bool:

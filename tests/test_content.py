@@ -148,7 +148,7 @@ class Sync(ContentCase):
         self.assertFalse((self.tmp.parent / "escape.png").exists())
         for rel in ("../x.png", "/etc/passwd", "sprites/a.png", "sprites/Bad.png", "themes/ocean/hud/other.png", "sprites/ok.png.exe"):
             self.assertFalse(safe_path(rel), rel)
-        for rel in ("sprites/gold_pear.png", "card_styles/gold/red_apple.png", "themes/ocean/hud/panel.png", "themes/ocean/palette.json", "avatars/face_one.png"):
+        for rel in ("sprites/gold_pear.png", "card_styles/gold/red_apple.png", "themes/ocean/hud/panel.png", "themes/ocean/palette.json", "themes/ocean/frame.json", "avatars/face_one.png"):
             self.assertTrue(safe_path(rel), rel)
 
     def test_offline_and_old_clients_keep_what_they_have(self):
