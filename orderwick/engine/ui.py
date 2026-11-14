@@ -255,6 +255,7 @@ class Choice(Widget):
         self.label, self.options = label, options
         self.on_change, self.is_unlocked, self.requirement = on_change, is_unlocked, requirement
         self.pos = next((i for i, (oid, _n) in enumerate(options) if oid == current), 0)
+        self.field_w = self.FIELD_W          # widened on the first draw so the longest name always fits between the arrows
 
     @property
     def shown_id(self) -> str:
@@ -274,7 +275,7 @@ class Choice(Widget):
 
     def handle_mouse(self, event) -> bool:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.rect.collidepoint(event.pos):
-            left_x = self.rect.right - 10 - 12 - self.FIELD_W
+            left_x = self.rect.right - 10 - 12 - self.field_w
             self._step(-1 if event.pos[0] < left_x + 6 else 1)
             return True
         return False
@@ -292,11 +293,16 @@ class Choice(Widget):
         kit.draw_button(surface, self.rect, "", "hover" if (focused or hover) else "normal")
         cy = self.rect.y + (self.rect.h - 8) // 2
         kit.text(surface, self.label, (self.rect.x + 6, cy), BTN_TEXT, shadow_color=BTN_SHADOW)
+        room = self.rect.w - 6 - kit.width(self.label) - 10 - 12 - 14      # what is left of the row after the label and the arrows
+        widest = max(kit.width(n) for _i, n in self.options) + 14           # + room for the lock icon
+        self.field_w = max(self.FIELD_W, min(widest, room))
         right_c = (self.rect.right - 10, self.rect.centery)
-        left_c = (self.rect.right - 10 - 12 - self.FIELD_W, self.rect.centery)
+        left_c = (self.rect.right - 10 - 12 - self.field_w, self.rect.centery)
         kit.draw_arrow(surface, left_c, -1, BTN_TEXT)
         kit.draw_arrow(surface, right_c, 1, BTN_TEXT)
         name = self.options[self.pos][1]
+        while len(name) > 3 and kit.width(name) > self.field_w - 6:
+            name = name[:-2].rstrip() + "."                                     # only for very long names, shortened rather than overlapping
         mid = (left_c[0] + right_c[0]) // 2
         if self.is_unlocked(self.shown_id):
             kit.text(surface, name, (mid, cy), BTN_VALUE, "midtop", shadow_color=BTN_SHADOW)
