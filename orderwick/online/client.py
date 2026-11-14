@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Callable
 
@@ -90,6 +91,24 @@ class ApiClient:
         if len(data) > limit:
             raise OnlineError("too_big", "A file was larger than allowed.")
         return data
+
+    def public_png(self, path: str, limit: int = 64 * 1024) -> bytes | None:
+        """A public picture (no sign-in): the bytes, or None when the server has none (404)."""
+        req = urllib.request.Request(self.base + path, headers={"User-Agent": self.agent})
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                return r.read(limit + 1)[:limit + 1]
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise OnlineError(f"http_{e.code}", f"Server error {e.code}.", e.code) from None
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+            raise OnlineError("network", "Can't reach the server.") from None
+
+    def avatar_pictures(self, nickname: str) -> tuple[bytes | None, bytes | None]:
+        """(talking strip, still picture) of the avatar this player wears; a missing strip is None."""
+        who = urllib.parse.quote(nickname, safe="")
+        return self.public_png(f"/avatar/{who}/talk.png"), self.public_png(f"/avatar/{who}.png")
 
     def rename(self, nickname: str) -> dict:
         return self.request("PATCH", "/api/v1/players/me", {"nickname": nickname})

@@ -265,6 +265,16 @@ class AnimatedFrame(unittest.TestCase):
                     self.assertEqual(f.get_size(), (w + 2 * frame_fx.MARGIN, h + 2 * frame_fx.MARGIN))
                     self.assertEqual(f.get_at((frame_fx.MARGIN + 5, frame_fx.MARGIN + 5))[3], 0, "the board hole must stay clear")
                 self.assertFalse(same_pixels(frames[0], frames[3]), f"{style} must animate")
+                self.assertGreaterEqual(len(frames), 24, "enough frames for a calm, non-repetitive loop")
+
+    def test_edges_do_not_repeat_every_48_pixels(self):
+        from orderwick.view import frame_fx
+        w, h = BoardSkin.native_size(10, 12)
+        for style in frame_fx.STYLES:
+            frame = frame_fx.build_frame(style, w, h, 5).surf
+            band = lambda x0: [tuple(frame.get_at((x0 + dx, y))) for dx in range(48) for y in range(0, frame_fx.MARGIN - frame_fx.RIM)]
+            bands = [band(frame_fx.MARGIN + 48 * i) for i in range(1, 4)]
+            self.assertTrue(len({tuple(b) for b in bands}) >= 2, f"{style}: neighbouring stretches must differ")
 
     def test_frame_json_is_validated(self):
         import json
@@ -293,10 +303,97 @@ class AnimatedFrame(unittest.TestCase):
             board = Board.from_kinds([[0, 1, 2]] * 5 + [[]], 2, 5)
             surface = pygame.Surface((900, 700))
             view.layout(board, surface.get_rect(), 3)
-            view.draw(surface, board, pick_palette(random.Random(1), 6))
+            for _ in range(40):                                  # the frames are built a few per draw
+                view.draw(surface, board, pick_palette(random.Random(1), 6))
             self.assertEqual(view._frame_key[0], "vines")
+            from orderwick.view import frame_fx
+            self.assertEqual(len(view._frame_native), frame_fx.FRAME_COUNT)
             self.assertIsNotNone(assets.theme_frame)
             assets.set_theme(None)
             view.draw(surface, board, pick_palette(random.Random(1), 6))
             self.assertIsNone(view._frame_key)                  # a theme without frame.json draws no frame
         BoardView.fit_margin = 0
+
+
+class AvatarSpeaker(unittest.TestCase):
+    """The avatar in the HUD: its frames, what the game accepts from the server and how the message box uses it."""
+
+    @classmethod
+    def setUpClass(cls):
+        pygame.init()
+        pygame.display.set_mode((100, 100))
+
+    def test_default_strip_has_four_frames_and_the_mouth_moves(self):
+        from orderwick.online.avatar import AvatarVoice
+        voice = AvatarVoice()
+        frames = voice.portrait.frames
+        self.assertEqual(len(frames), 4)
+        self.assertTrue(all(f.get_size() == (32, 32) for f in frames))
+        self.assertFalse(same_pixels(frames[0], frames[2]))
+        shown = {id(voice.portrait.frame(True, t / 20)) for t in range(40)}
+        self.assertGreaterEqual(len(shown), 3, "the mouth moves while speaking")
+        self.assertIs(voice.portrait.frame(False, 1.0), frames[0], "closed mouth when quiet")
+
+    def test_only_known_picture_sizes_are_accepted(self):
+        import io
+        from orderwick.online.avatar import load_portrait
+        def png(w, h):
+            buf = io.BytesIO()
+            pygame.image.save(pygame.Surface((w, h), pygame.SRCALPHA), buf, "x.png")
+            return buf.getvalue()
+        self.assertEqual(len(load_portrait(png(128, 32)).frames), 4)
+        self.assertEqual(len(load_portrait(png(32, 32)).frames), 1)
+        self.assertIsNone(load_portrait(png(64, 64)))
+        self.assertIsNone(load_portrait(b"not a png"))
+        self.assertIsNone(load_portrait(b"\x89PNG\r\n\x1a\n" + b"junk"))
+
+    def test_voice_takes_the_strip_then_the_still_and_keeps_a_cache(self):
+        import io
+        import tempfile
+        from orderwick.online.avatar import AvatarVoice
+        def png(w, h, colour):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf.fill(colour)
+            buf = io.BytesIO()
+            pygame.image.save(surf, buf, "x.png")
+            return buf.getvalue()
+        class Client:
+            def __init__(self, pair): self.pair = pair
+            def avatar_pictures(self, nickname): return self.pair
+        with tempfile.TemporaryDirectory() as d:
+            voice = AvatarVoice(Path(d))
+            self.assertTrue(voice.refresh_async(Client((png(128, 32, (200, 0, 0, 255)), png(32, 32, (0, 0, 0, 255)))), "Pat"))
+            voice.task.join()
+            self.assertTrue(voice.poll())
+            self.assertEqual(voice.portrait.frames[0].get_at((3, 3))[:3], (200, 0, 0))
+            self.assertTrue((Path(d) / "avatar_talk.png").is_file())
+            self.assertEqual(AvatarVoice(Path(d)).portrait.frames[0].get_at((3, 3))[:3], (200, 0, 0), "the last avatar is remembered offline")
+            voice.last_try = 0
+            voice.refresh_async(Client((None, png(32, 32, (0, 90, 0, 255)))), "Pat")      # no strip: the still picture is used
+            voice.task.join()
+            self.assertTrue(voice.poll())
+            self.assertEqual(len(voice.portrait.frames), 1)
+            voice.last_try = 0
+            voice.refresh_async(Client((b"junk", b"junk")), "Pat")                          # garbage changes nothing
+            voice.task.join()
+            self.assertFalse(voice.poll())
+            self.assertFalse(voice.refresh_async(None, "Pat", force=True))
+            self.assertFalse(voice.refresh_async(Client((None, None)), "", force=True))
+
+    def test_message_box_with_speaker_at_every_height(self):
+        from orderwick.online.avatar import AvatarVoice
+        hud = HudView(AssetManager(config.SPRITES_DIR))
+        face = AvatarVoice().portrait.frames[0]
+        for height in (171, 222, 240, 262, 300, 400):
+            plain = hud.render(HudData("A", "B", ["", ""], "0", "00:00", "0", [("Pick a card, then a target.", (255, 255, 255))],
+                                       [HudButton("PAUSE", "pause")]), height)
+            spoken = hud.render(HudData("A", "B", ["", ""], "0", "00:00", "0", [("Pick a card, then a target.", (255, 255, 255))],
+                                        [HudButton("PAUSE", "pause")], speaker=face), height)
+            self.assertEqual(spoken.get_size(), (config.HUD_WIDTH, height))
+            if height >= 262:
+                self.assertFalse(same_pixels(plain, spoken), f"the speaker shows at height {height}")
+        typed = hud.render(HudData("A", "B", ["", ""], "0", "00:00", "0", [("Pick a card, then a target.", (255, 255, 255))],
+                                   [HudButton("PAUSE", "pause")], speaker=face, reveal=4), 300)
+        full = hud.render(HudData("A", "B", ["", ""], "0", "00:00", "0", [("Pick a card, then a target.", (255, 255, 255))],
+                                  [HudButton("PAUSE", "pause")], speaker=face, reveal=999), 300)
+        self.assertFalse(same_pixels(typed, full), "the text is typed out letter by letter")

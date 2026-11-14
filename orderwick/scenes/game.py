@@ -1,6 +1,8 @@
 """Main game screen: board, info panel, moves, rescue, win."""
 from __future__ import annotations
 
+import time
+
 import pygame
 
 from .. import config
@@ -18,6 +20,7 @@ from .common import clear
 
 PREFETCH_BUDGET = 6.0      # seconds of deeper shuffling for a board built while you play
 PREFETCH_PAUSE = 0.04
+SPEECH_CPS = 55            # characters per second the avatar "types" (and moves its mouth for)
 
 
 class GameScene(Scene):
@@ -36,6 +39,8 @@ class GameScene(Scene):
         self.rescue_task: BackgroundTask | None = None
         self.prefetch: tuple[int, BackgroundTask] | None = None   # (level, task) of the next board
         self.anim = 0.0
+        self._speech_key: tuple = ()      # the messages the avatar is saying, and since when
+        self._speech_t0 = 0.0
         self._closed = False        # the run is already finished/saved
 
         self.hud = HudView(app.assets)
@@ -398,7 +403,16 @@ class GameScene(Scene):
             messages.append((self.msg, GOLD))
         if not messages and rnd is not None and not self.loading and not rnd.won:
             messages.append(("Pick a card, then a target.", TAN))
+        now = time.monotonic()
+        key = tuple(text for text, _color in messages)
+        if key != self._speech_key:                             # a new message: the avatar starts to talk
+            self._speech_key, self._speech_t0 = key, now
+        total = sum(len(text) + 1 for text in key)
+        reveal = int((now - self._speech_t0) * SPEECH_CPS)
+        talking = reveal < total
         return HudData(
+            speaker=self.app.avatar.portrait.frame(talking, now) if messages else None,
+            reveal=reveal,
             mode_title=s.mode.short_title,
             heading=f"LEVEL {label}" if s.mode.ranked or s.mode.id == "daily" else "BOARD",
             info=[f"{spec.cols}×{spec.rows} TYPES {spec.types}", f"FREE SLOTS {n_free}"],

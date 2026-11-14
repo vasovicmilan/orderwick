@@ -65,7 +65,7 @@ A board theme can have an animated frame. Put `frame.json` next to `palette.json
 ```
 
 Styles: `flames` (Ember), `vines` (Wildwood), `storm` (electric yellow and blue). The frame is generated in code
-(`orderwick/view/frame_fx.py`) for every board size, 28 px wide on every side, 8 frames. A theme without `frame.json`
+(`orderwick/view/frame_fx.py`) for every board size, 28 px wide on every side, 32 frames (every 48 px stretch of an edge is varied, so nothing repeats visibly; fps 8–12 looks calm). A theme without `frame.json`
 (or with an unknown style) has no frame. Themes that come from the server get `frame.json` through the same content
 sync as `board.png` and the HUD files. When a frame is active only 8 of its 28 px are reserved when the board is fitted
 into the window, so it does not shrink the board; on a tight window the outer edge of the frame is clipped.

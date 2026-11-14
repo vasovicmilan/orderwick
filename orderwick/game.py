@@ -31,7 +31,10 @@ class OrderwickGame(App):
         self.online = OnlineService()
         self.online.attach(self.events)
         self.content.client = self.online.client
-        self.events.subscribe("server_items", lambda **_: self.content.sync_async(force=True))
+        from .online.avatar import AvatarVoice
+        self.avatar = AvatarVoice(self.content.dir)           # the speaker in the HUD: the avatar the player wears (a built-in one offline)
+        self.events.subscribe("server_items", lambda **_: (self.content.sync_async(force=True),
+                                                           self.avatar.refresh_async(self.online.client, self.online.nickname, force=True)))
         self.progress.grant_server_cards(self.content.owned_cards())
         self.apply_appearance()
         audio.init(config.AUDIO_DIR, self.settings.data)
@@ -75,6 +78,8 @@ class OrderwickGame(App):
             audio.set_extra_tracks(self.content.music_files())    # new songs join the playlist
         elif self.online.enabled and not self.online.is_agent:
             self.content.sync_async()                            # at start and every 15 minutes
+            self.avatar.refresh_async(self.online.client, self.online.nickname)
+        self.avatar.poll()
         self.toasts.update(dt)
         audio.update(dt)
 

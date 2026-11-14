@@ -31,7 +31,8 @@ class BoardView:
     def __init__(self, assets: AssetManager):
         self.assets = assets
         self._frame_key: tuple | None = None
-        self._frame_surfaces: list[pygame.Surface] = []
+        self._frame_native: list[pygame.Surface] = []
+        self._frame_shown: tuple | None = None
         self.skin = BoardSkin(assets.image(config.BOARD_IMAGE))
         self.scale = 1
         self.origin = (0, 0)
@@ -165,19 +166,24 @@ class BoardView:
             return
         key = (spec["style"], w, h, self.scale)
         if key != self._frame_key:
+            self._frame_key, self._frame_native, self._frame_shown = key, [], None      # frames are drawn one by one (below)
+        if len(self._frame_native) < frame_fx.FRAME_COUNT:
+            start = pygame.time.get_ticks()
             try:
-                frames = frame_fx.build_frames(spec["style"], w, h)
+                while len(self._frame_native) < frame_fx.FRAME_COUNT and (not self._frame_native or pygame.time.get_ticks() - start < 10):
+                    self._frame_native.append(frame_fx.build_frame(spec["style"], w, h, len(self._frame_native)).surf)
             except Exception as error:                              # a broken frame must never break the game
                 from ..engine.logs import log_error
                 log_error(f"frame {spec['style']}: {error}")
                 self.assets.theme_frame = None
                 return
-            self._frame_surfaces = [pygame.transform.scale(f, (f.get_width() * self.scale, f.get_height() * self.scale))
-                                    for f in frames]
-            self._frame_key = key
-        index = int(pygame.time.get_ticks() * spec["fps"] / 1000) % len(self._frame_surfaces)
+        index = int(pygame.time.get_ticks() * spec["fps"] / 1000) % frame_fx.FRAME_COUNT
+        index %= len(self._frame_native)                            # while the rest is still being built the first frames loop
+        if self._frame_shown is None or self._frame_shown[0] != index:
+            f = self._frame_native[index]
+            self._frame_shown = (index, pygame.transform.scale(f, (f.get_width() * self.scale, f.get_height() * self.scale)))
         m = frame_fx.MARGIN * self.scale
-        surface.blit(self._frame_surfaces[index], (self.origin[0] - m, self.origin[1] - m))
+        surface.blit(self._frame_shown[1], (self.origin[0] - m, self.origin[1] - m))
 
     def layout_from_board(self, board: Board) -> None:
         """The number of free slots changes during the game (rescue) - refresh without changing the size."""

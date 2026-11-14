@@ -121,6 +121,7 @@ PREMIUM_CARDS: dict[str, str] = {}
 # --- sound -------------------------------------------------------------------------------------
 ICON_PATH = ASSETS_DIR / "icon" / "icon_32.png"      # window icon (see tools/make_icon.py)
 AUDIO_DIR = ASSETS_DIR / "audio"
+AVATAR_DEFAULT = ASSETS_DIR / "avatars" / "default_talk.png"     # the speaker when offline: 4 frames of 32x32 (mouth closed, small, wide, small)
 AUDIO_ICONS = "hud/icons_audio.png"
 AUDIO_ICON_ORDER = ["music", "sound", "mute", "gear", "trophy", "cards"]
 # Loudness per effect (multiplied by the global effects volume): "place" (moving a card) is the reference (0.8),

@@ -26,6 +26,8 @@ __all__ = ["HudView", "HudButton", "HudData", "WinData", "BAD", "CREAM", "GOLD",
 # The HUD adapts to the available height (height = window height / scale): the less room there is,
 # the more compact it gets (smaller title, no board-info row, shorter buttons). Messages get all the rest.
 MSG_MIN = 26                      # smallest height of the message field (2 lines of text)
+PORTRAIT = 36                     # the speaker's window: a 32x32 avatar with a 2 px margin
+STACK_MIN = MSG_MIN + 3 + PORTRAIT   # room for a bubble above the speaker; between PORTRAIT and this the speaker stands beside the bubble
 TIERS = {
     #        button height, gap, big title, "info" row, statistics row height
     "full":  dict(btn_h=16, btn_gap=3, big=True, info=True, row_h=12, top=8, bottom=8, min_h=222),
@@ -58,6 +60,8 @@ class HudData:
     score: str
     messages: list[tuple[str, tuple]] = field(default_factory=list)
     buttons: list[HudButton] = field(default_factory=list)
+    speaker: pygame.Surface | None = None      # the avatar that "says" the messages (32x32, the current mouth frame)
+    reveal: int | None = None                  # how many characters of the messages are typed out so far (None = all)
 
 
 @dataclass
@@ -207,15 +211,31 @@ class HudView:
         rects = self.button_rects(height, len(data.buttons))
         msg_bottom = (rects[0].y - 4) if rects else height - t["bottom"]
         if msg_bottom - y >= MSG_MIN:
-            mbox = pygame.Rect(MARGIN, y, W - 2 * MARGIN, msg_bottom - y)
+            area = pygame.Rect(MARGIN, y, W - 2 * MARGIN, msg_bottom - y)
+            mbox, window = area, None
+            if data.speaker is not None and data.messages:
+                if area.h >= STACK_MIN:                        # the bubble above, the speaker under it on the left
+                    mbox = pygame.Rect(area.x, area.y, area.w, area.h - PORTRAIT - 3)
+                    window = pygame.Rect(area.x, area.bottom - PORTRAIT, PORTRAIT, PORTRAIT)
+                elif area.h >= PORTRAIT:                       # the speaker on the left, the bubble to the right
+                    window = pygame.Rect(area.x, area.y, PORTRAIT, PORTRAIT)
+                    mbox = pygame.Rect(area.x + PORTRAIT + 2, area.y, area.w - PORTRAIT - 2, area.h)
             surf.blit(self.inset.render(mbox.size), mbox.topleft)
+            if window is not None:
+                surf.blit(self.inset.render(window.size), window.topleft)
+                surf.blit(data.speaker, (window.x + 2, window.y + 2))
+                if window.y > mbox.y:                          # a little tail from the bubble to the speaker
+                    for k in range(3):
+                        pygame.draw.line(surf, DARK, (window.x + 14 + k, mbox.bottom + k), (window.x + 20 - k, mbox.bottom + k))
             ty = mbox.y + INSET_PAD + 1
             inner_w = mbox.w - 2 * INSET_PAD - 2
+            left = data.reveal if data.reveal is not None else 10 ** 9
             for text, color in data.messages:
                 for line in self.wrap_body(text, inner_w):
-                    if ty + 8 > mbox.bottom - INSET_PAD:
+                    if ty + 8 > mbox.bottom - INSET_PAD or left <= 0:
                         break
-                    self._text(surf, self.body, line, color, (mbox.x + INSET_PAD + 1, ty), shadow=False)
+                    self._text(surf, self.body, line[:left], color, (mbox.x + INSET_PAD + 1, ty), shadow=False)
+                    left -= len(line) + 1
                     ty += 9
                 ty += 3
         for i, (rect, btn) in enumerate(zip(rects, data.buttons)):
