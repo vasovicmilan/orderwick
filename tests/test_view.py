@@ -246,6 +246,11 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def frame_fx_styles():
+    from orderwick.view import frame_fx
+    return frame_fx.STYLES
+
+
 class AnimatedFrame(unittest.TestCase):
     """frame.json of a board theme -> animated frame around the board (generated for any size)."""
 
@@ -275,6 +280,22 @@ class AnimatedFrame(unittest.TestCase):
             band = lambda x0: [tuple(frame.get_at((x0 + dx, y))) for dx in range(48) for y in range(0, frame_fx.MARGIN - frame_fx.RIM)]
             bands = [band(frame_fx.MARGIN + 48 * i) for i in range(1, 4)]
             self.assertTrue(len({tuple(b) for b in bands}) >= 2, f"{style}: neighbouring stretches must differ")
+
+    def test_lanes_move_inside_but_the_cards_area_keeps_its_shape(self):
+        from orderwick.view import lane_fx
+        from orderwick.view.board_skin import BoardSkin as Skin
+        skin = Skin(AssetManager(config.SPRITES_DIR).image(config.BOARD_IMAGE))
+        for n, k in ((10, 12), (4, 5)):
+            base = skin.build(n, k)
+            deco, nn, kk = lane_fx.find_decoration(base)
+            self.assertEqual((nn, kk), (n, k))
+            self.assertGreater(len(deco), 0)
+            for style in frame_fx_styles():
+                frames = lane_fx.build_overlays(style, base)
+                self.assertEqual(len(frames), lane_fx.LOOP)
+                self.assertEqual(frames[0].get_size(), base.get_size())
+                self.assertEqual(frames[0].get_at((1, 1))[3], 0, "the outer frame is never touched")
+                self.assertFalse(same_pixels(frames[0], frames[lane_fx.LOOP // 2]), f"{style} lanes must change over time")
 
     def test_frame_json_is_validated(self):
         import json
@@ -308,10 +329,13 @@ class AnimatedFrame(unittest.TestCase):
             self.assertEqual(view._frame_key[0], "vines")
             from orderwick.view import frame_fx
             self.assertEqual(len(view._frame_native), frame_fx.FRAME_COUNT)
+            self.assertIsNotNone(view._lane_fx, "a board with an animated frame also animates its lanes")
+            self.assertTrue(view._lane_fx.frames)
             self.assertIsNotNone(assets.theme_frame)
             assets.set_theme(None)
             view.draw(surface, board, pick_palette(random.Random(1), 6))
             self.assertIsNone(view._frame_key)                  # a theme without frame.json draws no frame
+            self.assertIsNone(view._lane_fx)                    # ... and leaves the lanes still
         BoardView.fit_margin = 0
 
 

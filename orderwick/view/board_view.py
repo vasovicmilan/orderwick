@@ -13,7 +13,7 @@ from ..core.board import Board
 from ..core.models import COL, FREE, Loc, col, slot
 from ..engine.assets import AssetManager
 from ..engine.ui import draw_text
-from . import frame_fx
+from . import frame_fx, lane_fx
 from .board_skin import BORDER, CELL, GAP, PITCH, BoardSkin
 from .colors import GOLD, TAN
 
@@ -33,6 +33,8 @@ class BoardView:
         self._frame_key: tuple | None = None
         self._frame_native: list[pygame.Surface] = []
         self._frame_shown: tuple | None = None
+        self._lane_fx: lane_fx.LaneFx | None = None
+        self._lane_key: tuple | None = None
         self.skin = BoardSkin(assets.image(config.BOARD_IMAGE))
         self.scale = 1
         self.origin = (0, 0)
@@ -115,7 +117,9 @@ class BoardView:
 
     # ---- drawing ------------------------------------------------------------------
     def _render_native(self, board: Board, palette: list[str]) -> pygame.Surface:
-        surf = self.skin.build(self.n_cols, self.capacity).copy()
+        base = self.skin.build(self.n_cols, self.capacity)
+        surf = base.copy()
+        self._blit_lane_fx(surf, base)
         assets = self.assets
         for c in range(self.n_cols - self.n_free):                    # locked slots
             surf.blit(assets.sprite(config.BLOCKED_SPRITE), self.skin.slot_pos(c))
@@ -157,6 +161,30 @@ class BoardView:
                 rect = self.loc_rect(selected)
             self._outline(surface, rect, config.COLOR_SELECT, thick + 1, s)
         self._draw_labels(surface, board, cursor, selected)
+
+    def _blit_lane_fx(self, surf: pygame.Surface, base: pygame.Surface) -> None:
+        """A themed board with an animated frame also moves a little inside its lanes (under the cards)."""
+        spec = self.assets.theme_frame
+        if not spec:
+            self._lane_fx = self._lane_key = None
+            return
+        key = (spec["style"], id(base), str(self.assets.theme_dir))
+        if key != self._lane_key:
+            try:
+                self._lane_fx, self._lane_key = lane_fx.LaneFx(spec["style"], base), key
+            except Exception as error:                              # decoration is a bonus: never break the game for it
+                from ..engine.logs import log_error
+                log_error(f"lane fx {spec['style']}: {error}")
+                self._lane_fx, self._lane_key = None, key
+        fx = self._lane_fx
+        if fx is None:
+            return
+        if not fx.complete:
+            start = pygame.time.get_ticks()
+            while not fx.complete and (not fx.frames or pygame.time.get_ticks() - start < 6):
+                fx.build_next()
+        index = int(pygame.time.get_ticks() * spec["fps"] / 1000) % lane_fx.LOOP
+        surf.blit(fx.frames[index % len(fx.frames)], (0, 0))
 
     def _draw_frame(self, surface: pygame.Surface, w: int, h: int) -> None:
         """The animated frame of the theme around the board (nothing if the theme has none)."""

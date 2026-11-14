@@ -66,6 +66,7 @@ A board theme can have an animated frame. Put `frame.json` next to `palette.json
 
 Styles: `flames` (Ember), `vines` (Wildwood), `storm` (electric yellow and blue). The frame is generated in code
 (`orderwick/view/frame_fx.py`) for every board size, 28 px wide on every side, 32 frames (every 48 px stretch of an edge is varied, so nothing repeats visibly; fps 8–12 looks calm). A theme without `frame.json`
+A theme with a frame also brings its board lanes to life, automatically and with the same style: the decoration painted into the lanes (cracks, moss, rungs) is found in `board.png` and re-coloured over a 5 second loop (a surge of heat, a breeze, a flash), plus a few extra pixels (rising embers, spores, one bolt of lightning). It is drawn under the cards (`orderwick/view/lane_fx.py`); no extra files are needed.
 (or with an unknown style) has no frame. Themes that come from the server get `frame.json` through the same content
 sync as `board.png` and the HUD files. When a frame is active only 8 of its 28 px are reserved when the board is fitted
 into the window, so it does not shrink the board; on a tight window the outer edge of the frame is clipped.
