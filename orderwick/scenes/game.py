@@ -151,9 +151,6 @@ class GameScene(Scene):
     def _restart(self) -> None:
         if self.loading or self.rescue_task:
             return
-        if self.session.mode.id == "season":
-            self._say("There are no new boards in the Season. Finish this one.")
-            return
         if self.session.mode.id == "daily":                 # the same board again, from the start (no penalty)
             if not self.rnd.won:
                 self._begin_load()
@@ -387,21 +384,15 @@ class GameScene(Scene):
                 self._say(note, 8)
 
     def _season_stuck(self, dt: float) -> None:
-        """Season: no rescue. A board with no move left and nothing to undo ends the run (after a moment to see it)."""
-        rnd = self.rnd
-        if self.session.mode.id != "season" or self._closed or rnd is None or rnd.won or self.loading or rnd.board.has_moves() or rnd.undo is not None:
-            self.stuck_for = 0.0
-            return
-        self.stuck_for += dt
-        if self.stuck_for >= 2.5:
-            self._finish()
+        """Season: no rescue, but a stuck board is never a dead end: a new board costs points (R, R), or end the run from the pause menu."""
+        self.stuck_for = 0.0
 
     # ---- drawing -------------------------------------------------------------------------
     def _hud_enabled(self) -> list[bool]:
         rnd = self.rnd
         if self.loading or rnd is None or rnd.won:
             return [False] * 4
-        return [rnd.undo is not None, True, self.session.mode.id != "season", True]
+        return [rnd.undo is not None, self.session.mode.id != "season", True, True]
 
     def _hud_data(self) -> HudData:
         s = self.session
@@ -413,8 +404,7 @@ class GameScene(Scene):
         messages: list[tuple[str, tuple]] = []
         if rnd is not None and not self.loading and not rnd.won and not rnd.board.has_moves():
             messages.append(("NO MOVES LEFT! U = undo, R = restart the board." if s.mode.id == "daily"
-                             else ("NO MOVES LEFT! Undo a move, or the run ends." if rnd.undo is not None and s.mode.id == "season"
-                                   else "NO MOVES LEFT! The run ends." if s.mode.id == "season"
+                             else ("NO MOVES LEFT! U = undo, R = new board (-%d points)." % config.RESTART_PENALTY if s.mode.id == "season"
                                    else "NO MOVES LEFT! X = rescue, U = undo, R = new board."), BAD))
         if self.msg:
             messages.append((self.msg, GOLD))

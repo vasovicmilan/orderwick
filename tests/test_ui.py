@@ -236,7 +236,8 @@ class UiFlow(unittest.TestCase):
         self.assertEqual(view._run_rect(board3, 0).height,
                          view.cell_rect(0, 1).union(view.cell_rect(0, 3)).height)
 
-    def test_06b_season_has_no_rescue_and_a_stuck_board_ends_the_run(self):
+    def test_06b_season_has_no_rescue_but_a_new_board_for_points(self):
+        from orderwick import config
         from orderwick.core.board import Board
         scenes = self.app.scenes
         game = GameScene(self.app, GameSession(SeasonMode(), events=self.app.events))
@@ -244,16 +245,50 @@ class UiFlow(unittest.TestCase):
         scenes.push(game)
         self.wait_loaded(game)
         self.assertEqual(game.session.rescue_blocker(), SeasonMode.no_rescue_message)
-        self.assertFalse(game._hud_enabled()[2], "no new board in the Season")
-        game._restart()
-        self.assertIn("no new boards", game.msg.lower())
+        enabled = game._hud_enabled()
+        self.assertFalse(enabled[1], "Rescue looks (and is) switched off in the Season")
+        self.assertTrue(enabled[2], "a new board is possible: a stuck board is never a dead end")
+        game.session.score = 200
+        game._restart()                                                          # R once: asks
+        self.assertIn("again", game.msg.lower())
+        game._restart()                                                          # R twice: new board, points off
+        self.assertEqual(game.session.score, 200 - config.RESTART_PENALTY)
+        self.wait_loaded(game)
         game.rnd.undo = None
         game.rnd.board = Board.from_kinds([[1, 2], [2, 1]], 0, 2, reveal=2)       # no free slot, nothing can move
         self.assertFalse(game.rnd.board.has_moves())
-        game.update(1.0)
-        self.assertIs(scenes.current, game, "a moment to see the dead end first")
-        game.update(2.0)
-        self.assertIsInstance(scenes.current, MenuScene)
+        game.update(5.0)
+        self.assertIs(scenes.current, game, "the run does not end by itself")
+        self.assertIn("new board", " ".join(text for text, _c in game._hud_data().messages).lower())
+
+    def test_06d_a_season_run_always_uses_the_season_board_and_songs(self):
+        from orderwick.engine.audio import audio
+        scenes, app = self.app.scenes, self.app
+        app.settings.data["board_theme"] = "wood"
+        calls = []
+        audio.set_season_tracks = lambda paths: calls.append(paths)
+        app.content.lent_theme = lambda: "emerald"
+        app.content.season_music_files = lambda: [Path("/x/frost_a.ogg")]
+        try:
+            scenes.reset(MenuScene(app))
+            app.sync_season_look()
+            self.assertFalse(app.season_look)
+            game = GameScene(app, GameSession(SeasonMode(), events=app.events))
+            scenes.push(game)
+            app.sync_season_look()
+            self.assertTrue(app.season_look)
+            self.assertEqual(calls[-1], ["/x/frost_a.ogg"])
+            self.assertEqual(app.settings.data["board_theme"], "wood", "the player's own choice is not touched")
+            app.sync_season_look()
+            self.assertEqual(len(calls), 1, "no message to the audio process unless something changed")
+            scenes.pop()
+            app.sync_season_look()
+            self.assertFalse(app.season_look)
+            self.assertIsNone(calls[-1], "back to the normal playlist")
+        finally:
+            audio.__dict__.pop('set_season_tracks', None)
+            del app.content.lent_theme, app.content.season_music_files
+            app.apply_appearance()
 
     def test_06c_season_screen_shows_prizes_and_the_reward_popup(self):
         from orderwick.scenes.season import SeasonScene, prize_line

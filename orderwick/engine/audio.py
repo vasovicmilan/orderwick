@@ -170,11 +170,24 @@ class Audio:
             self.tracks = wanted
             self._bag = []
 
+    def set_season_tracks(self, paths) -> None:
+        """While a Season run is on only the season's own songs play (None = back to the normal playlist)."""
+        wanted = [Path(p) for p in paths if Path(p).is_file()] if paths else None
+        if wanted == getattr(self, "_season_tracks", None):
+            return
+        self._season_tracks = wanted or None
+        self._bag = []
+        if self.ready and self._playing:
+            pygame.mixer.music.fadeout(600)                 # the other song fades out, the season's own starts soon after
+            self._playing = False
+        self._gap = min(getattr(self, "_gap", 1.0), 0.8)
+
     def _next_track(self) -> Path | None:
-        if not self.tracks:
+        pool = getattr(self, "_season_tracks", None) or self.tracks
+        if not pool:
             return None
         if not self._bag:
-            self._bag = self.tracks[:]
+            self._bag = pool[:]
             self.rng.shuffle(self._bag)
             if len(self._bag) > 1 and self._bag[-1] == self._last_track:
                 self._bag[0], self._bag[-1] = self._bag[-1], self._bag[0]
@@ -289,6 +302,13 @@ class RemoteAudio:
             self._local.set_extra_tracks(paths)
         else:
             self._send("tracks", paths)
+
+    def set_season_tracks(self, paths) -> None:
+        paths = [str(p) for p in paths] if paths else None
+        if self._local is not None:
+            self._local.set_season_tracks(paths)
+        else:
+            self._send("season", paths)
 
     def update(self, dt: float) -> None:
         if self._local is not None:

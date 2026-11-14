@@ -42,6 +42,15 @@ def safe_path(rel: str) -> bool:
     return isinstance(rel, str) and bool(_PATH_RE.match(rel))
 
 
+# The first season songs were published before the naming rule "<theme>_<name>" existed.
+LEGACY_SEASON_TRACKS = {"winter_frost": "frost", "christmas_eve": "christmas", "easter_meadow": "easter"}
+
+
+def is_season_track(code: str, theme: str) -> bool:
+    """A song belongs to a board theme when its code is "<theme>_<name>" (or one of the first three, listed above)."""
+    return bool(theme) and (str(code).startswith(theme + "_") or LEGACY_SEASON_TRACKS.get(code) == theme)
+
+
 class ContentStore:
     def __init__(self, client=None, store: JsonStore | None = None, directory: Path | None = None):
         base = directory or default_data_dir()
@@ -80,6 +89,18 @@ class ContentStore:
             return None
         item = next((i for i in self.items if i["code"] == season.get("theme") and i["kind"] == "board_theme"), None)
         return season["theme"] if item and self._present(item) else None
+
+    def season_music_files(self) -> list[Path]:
+        """The season's own songs (lent to everybody while it runs, like its board): played instead of the normal playlist in a Season run."""
+        season = self.season
+        if not season:
+            return []
+        wanted = set(season.get("music") or [])
+        found = []
+        for item in self.items:
+            if item.get("kind") == "music" and item["code"] in wanted and self._present(item):
+                found += [self.dir / rel for rel in item.get("files", {}) if rel.endswith(".ogg")]
+        return sorted(found)
 
     def owned_cards(self) -> list[str]:
         return [i["code"] for i in self.items if i["kind"] == "card" and i["code"] in self.owned and self._present(i)]
@@ -172,8 +193,13 @@ class ContentStore:
             return None
         for rel, meta in (item.get("files") or {}).items():
             self._ensure(rel, meta)
+        music = [i["code"] for i in manifest.get("items", []) if i.get("kind") == "music" and is_season_track(i.get("code", ""), theme)]
+        for track in manifest.get("items", []):
+            if track.get("code") in music:                   # the songs that belong to the board are lent too
+                for rel, meta in (track.get("files") or {}).items():
+                    self._ensure(rel, meta)
         ends = time.time() + max(0, int(live.get("remainingSeconds", 0)))
-        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "ends": ends}
+        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "ends": ends, "music": music}
 
     def _ensure(self, rel: str, meta: dict) -> bool:
         """Makes sure one file is in the cache with exactly the content the manifest promises. False = skipped."""

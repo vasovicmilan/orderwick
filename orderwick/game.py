@@ -51,7 +51,9 @@ class OrderwickGame(App):
         data = self.settings.data
         theme = cosmetics.resolve(cosmetics.BOARD, data.get("board_theme", ""), trophies)
         style = cosmetics.resolve(cosmetics.CARDS, data.get("card_style", ""), trophies)
-        data["board_theme"], data["card_style"] = theme, style
+        data["board_theme"], data["card_style"] = theme, style                   # the player's own choice stays as it is
+        if self.season_look and self.content.lent_theme():                       # in a Season run the season's board is always used
+            theme = self.content.lent_theme()
         self.assets.set_theme(None if theme == cosmetics.default_id(cosmetics.BOARD) else self.content.theme_dir(theme))
         self.assets.set_card_style(None if style == cosmetics.default_id(cosmetics.CARDS)
                                    else self.content.card_style_dir(style))
@@ -60,6 +62,24 @@ class OrderwickGame(App):
         from .view.board_view import BoardView
         BoardView.fit_margin = BoardView.FRAME_FIT_MARGIN if self.assets.theme_frame else 0
         self._wood_kit = None                                    # menus/dialogs are rebuilt in the new style
+
+    season_look = False
+    _season_sent = None
+
+    def _season_run_open(self) -> bool:
+        return any(getattr(getattr(getattr(s, "session", None), "mode", None), "id", "") == "season" for s in self.scenes._stack)
+
+    def sync_season_look(self) -> None:
+        """A Season run always uses the season's board and only the season's songs, whatever the player chose; afterwards everything goes back."""
+        want = self._season_run_open() and bool(self.content.lent_theme())
+        tracks = self.content.season_music_files() if want else []
+        if want != self.season_look:
+            self.season_look = want
+            self.apply_appearance()
+        sent = tuple(str(t) for t in tracks) if want and tracks else None
+        if sent != self._season_sent:                                            # only when it changes (every call is a message to the audio process)
+            self._season_sent = sent
+            audio.set_season_tracks(list(sent) if sent else None)
 
     def new_session(self, mode):
         """A new run: only unlocked cards appear."""
@@ -80,6 +100,7 @@ class OrderwickGame(App):
             self.content.sync_async()                            # at start and every 15 minutes
             self.avatar.refresh_async(self.online.client, self.online.nickname)
         self.avatar.poll()
+        self.sync_season_look()
         self.toasts.update(dt)
         audio.update(dt)
 

@@ -95,6 +95,9 @@ class Sync(ContentCase):
     def test_the_season_theme_is_lent_to_everybody_while_it_runs(self):
         theme = {"themes/frost/board/board.png": png((9, 9, 9)), "themes/frost/palette.json": b'{"WOOD":[1,2,3]}'}
         self.api.add(item("frost", "board_theme", theme, acquisition="grant", price=0), theme)
+        for code, fill in (("frost_drift", 1), ("winter_frost", 2), ("christmas_bells", 3), ("other_song", 4)):
+            song = {f"music/{code}.ogg": b"OggS" + bytes([fill]) * 3000}
+            self.api.add(item(code, "music", song, acquisition="grant", price=0), song)
         self.api.owned = []                                          # the player does not own it
         self.api.live = {"code": "winter", "name": "Winter", "theme": {"code": "frost"}, "remainingSeconds": 3600}
         store = self.store()
@@ -104,6 +107,9 @@ class Sync(ContentCase):
         self.assertEqual(store.lent_theme(), "frost")
         self.assertIn("frost", cosmetics.OWNED)
         self.assertEqual(store.season["code"], "winter")
+        self.assertEqual([p.name for p in store.season_music_files()], ["frost_drift.ogg", "winter_frost.ogg"],
+                         "the songs of the board are lent too (by name), the others are not")
+        self.assertEqual(store.music_files(), [], "but they are not in the normal playlist: the player does not own them")
         self.api.live = None                                         # the season is over: the loan ends, the theme is not kept
         store.sync_async(force=True)
         wait(store)

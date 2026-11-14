@@ -44,6 +44,8 @@ def run(conn, directory: str, settings: dict) -> None:
                         audio.play_pair(msg[1])
                     elif cmd == "tracks":
                         audio.set_extra_tracks(msg[1])
+                    elif cmd == "season":
+                        audio.set_season_tracks(msg[1])
                     elif cmd == "settings":
                         audio.settings.update(msg[1])
                         audio.apply()
