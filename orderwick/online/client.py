@@ -137,5 +137,11 @@ class ApiClient:
     def leaderboard(self, mode: str, who: str = "all") -> dict:
         return self.request("GET", f"/api/v1/leaderboard/{mode}?who={who}&limit=20", auth=False)
 
+    def season(self) -> dict:
+        return self.request("GET", "/api/v1/season")
+
+    def season_seen(self) -> dict:
+        return self.request("POST", "/api/v1/season/rewards/seen", {})
+
     def latest_version(self) -> dict:
         return self.request("GET", f"/api/v1/version/latest?platform={self.platform}&current={self.version}", auth=False)

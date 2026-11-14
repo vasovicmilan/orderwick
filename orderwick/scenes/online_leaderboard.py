@@ -7,7 +7,7 @@ from ..engine.tasks import BackgroundTask
 from ..online.client import OnlineError
 from .leaderboard import LeaderboardScene
 
-ONLINE_TABS = [("hard", "Hard mode"), ("campaign", "Campaign"), ("daily", "Daily")]
+ONLINE_TABS = [("hard", "Hard mode"), ("campaign", "Campaign"), ("daily", "Daily"), ("season", "Season")]
 FILTERS = [("all", "Everyone"), ("human", "Players"), ("agent", "AI agents")]
 
 

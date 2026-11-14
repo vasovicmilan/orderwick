@@ -6,7 +6,7 @@ from pathlib import Path
 
 from orderwick.core.board import Board
 from orderwick.core.generator import BoardGenerator
-from orderwick.core.levels import CampaignMode, CustomMode, HardMode, LevelCatalog
+from orderwick.core.levels import CampaignMode, CustomMode, HardMode, LevelCatalog, SeasonMode
 from orderwick.core.models import LevelSpec, col, slot
 from orderwick.core.scoring import Scoring
 from orderwick.core.session import GameSession
@@ -248,6 +248,14 @@ class Levels(unittest.TestCase):
 
     def test_hard_mode_starts_at_final(self):
         self.assertEqual(HardMode().initial_level(), LevelCatalog.final_level())
+
+    def test_season_mode_is_hard_without_rescue(self):
+        mode = SeasonMode()
+        self.assertEqual(mode.id, "season")
+        self.assertEqual(mode.initial_level(), LevelCatalog.final_level())
+        self.assertIsNone(mode.rescue_level(mode.initial_level() + 5))
+        self.assertTrue(mode.ranked)
+        self.assertEqual(mode.next_level(20), 21, "levels keep counting up, so every board is worth more")
 
     def test_assets_are_enough(self):
         from orderwick import config

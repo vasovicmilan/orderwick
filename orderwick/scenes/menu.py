@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import random
+import time
 
 import pygame
 
 from .. import config
 from ..core.levels import HardMode
+from .season import format_left
 from ..engine.native_scene import NativeScene
 from ..engine.ui import Button, FocusGroup
 from ..view.wood_kit import GOLD, TAN, CardTicker
@@ -20,11 +22,13 @@ class MenuScene(NativeScene):
     def __init__(self, app):
         super().__init__(app)
         self.daily_button = Button("Daily", self._daily, icon="trophy")
+        self.season_button = Button("Season", self._season, icon="trophy")
         self.online_button = Button("Online", self._online, icon="score")
         self.group = FocusGroup([
             Button("Campaign", self._campaign),
             Button("Hard mode", self._hard),
             self.daily_button,
+            self.season_button,
             Button("Custom game", self._custom),
             Button("Trophies", self._trophies, icon="trophy"),
             Button("Leaderboard", self._leaderboard, icon="score"),
@@ -53,6 +57,10 @@ class MenuScene(NativeScene):
     def _daily(self) -> None:
         from .daily import DailyScene
         self.app.scenes.push(DailyScene(self.app))
+
+    def _season(self) -> None:
+        from .season import SeasonScene
+        self.app.scenes.push(SeasonScene(self.app))
 
     def _trophies(self) -> None:
         from .achievements import AchievementsScene
@@ -91,7 +99,7 @@ class MenuScene(NativeScene):
     def paint(self, canvas: pygame.Surface) -> None:
         nw, nh = self.native_size
         kit = self.kit
-        panel = centered(nw, nh, 200, 222)
+        panel = centered(nw, nh, 200, 236)
         kit.draw_panel(canvas, panel)
         cx, y = panel.centerx, panel.y + 9
         kit.text(canvas, config.APP_NAME, (cx, y), GOLD, "midtop", big=True)
@@ -102,6 +110,8 @@ class MenuScene(NativeScene):
         self.online_button.text = "Online  ON" if self.app.online.enabled else "Online"
         done = self.app.daily.done_count()
         self.daily_button.text = "Daily  DONE" if done >= 3 else f"Daily  {done}/3"
+        live = self.app.content.season
+        self.season_button.text = f"Season  {format_left(int(live['ends'] - time.time()))[:7]}" if live else "Season"
         self.group.layout_column(cx, strip.bottom + 6, BTN_W, BTN_H, BTN_GAP)
         w = self.group.widgets                                      # last four share two rows: Settings|Help, About|Quit
         half = (BTN_W - BTN_GAP) // 2

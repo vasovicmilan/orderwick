@@ -17,7 +17,7 @@ os.environ["ORDERWICK_HOME"] = _TMP
 import pygame  # noqa: E402
 
 from orderwick import config  # noqa: E402
-from orderwick.core.levels import CampaignMode, HardMode  # noqa: E402
+from orderwick.core.levels import CampaignMode, HardMode, SeasonMode  # noqa: E402
 from orderwick.core.session import GameSession  # noqa: E402
 from orderwick.game import OrderwickGame  # noqa: E402
 from orderwick.scenes.custom import CustomScene  # noqa: E402
@@ -235,6 +235,55 @@ class UiFlow(unittest.TestCase):
         board3 = Board.from_kinds([[1, 1, 1, 1], [], []], 1, 4, reveal=3)
         self.assertEqual(view._run_rect(board3, 0).height,
                          view.cell_rect(0, 1).union(view.cell_rect(0, 3)).height)
+
+    def test_06b_season_has_no_rescue_and_a_stuck_board_ends_the_run(self):
+        from orderwick.core.board import Board
+        scenes = self.app.scenes
+        game = GameScene(self.app, GameSession(SeasonMode(), events=self.app.events))
+        scenes.reset(MenuScene(self.app))
+        scenes.push(game)
+        self.wait_loaded(game)
+        self.assertEqual(game.session.rescue_blocker(), SeasonMode.no_rescue_message)
+        self.assertFalse(game._hud_enabled()[2], "no new board in the Season")
+        game._restart()
+        self.assertIn("no new boards", game.msg.lower())
+        game.rnd.undo = None
+        game.rnd.board = Board.from_kinds([[1, 2], [2, 1]], 0, 2, reveal=2)       # no free slot, nothing can move
+        self.assertFalse(game.rnd.board.has_moves())
+        game.update(1.0)
+        self.assertIs(scenes.current, game, "a moment to see the dead end first")
+        game.update(2.0)
+        self.assertIsInstance(scenes.current, MenuScene)
+
+    def test_06c_season_screen_shows_prizes_and_the_reward_popup(self):
+        from orderwick.scenes.season import SeasonScene, prize_line
+        info = {"active": {"code": "winter", "name": "Frostbound", "remainingSeconds": 90000, "me": {"rank": 3, "best": 1200, "level": 17},
+                           "theme": {"code": "frost", "name": "Frostbound", "kind": "board_theme"},
+                           "prizes": [{"label": "Champion", "rankFrom": 1, "rankTo": 1, "coins": {"from": 0, "to": 0}, "items": [{"code": "snowman", "name": "Snowman", "kind": "avatar"}]},
+                                      {"label": "", "rankFrom": 4, "rankTo": 10, "coins": {"from": 100, "to": 10}, "items": []}]},
+                "upcoming": None, "last": None, "rewards": []}
+        self.assertEqual(prize_line(info["active"]["prizes"][0]), "#1  Snowman")
+        self.assertEqual(prize_line(info["active"]["prizes"][1]), "#4-10  100>10 coins")
+        self.app.online.season_info = lambda: info
+        self.app.online.client = type("C", (), {"leaderboard": lambda s, m, w: {"entries": [{"name": "Ana", "score": 1500}]}})()
+        scene = SeasonScene(self.app)
+        self.app.scenes.reset(MenuScene(self.app))
+        self.app.scenes.push(scene)
+        scene.task.join()
+        self.frame(2)
+        self.assertEqual(scene.board[0]["name"], "Ana")
+        self.shot("32_season")
+        seen = []
+        self.app.online.season_rewards_seen = lambda: seen.append(1)
+        info["rewards"] = [{"season": {"code": "winter", "name": "Frostbound"}, "rank": 2, "score": 900, "coins": 50, "items": [{"code": "elf", "name": "Elf", "kind": "avatar"}]}]
+        scene._fetch()
+        scene.task.join()
+        self.frame(2)
+        self.shot("33_season_prizes")
+        self.frame(events=[key(pygame.K_SPACE)])
+        self.assertEqual(seen, [1])
+        self.app.scenes.reset(MenuScene(self.app))
+        self.frame(2)
 
     def test_07_exit_paths(self):
         scenes = self.app.scenes

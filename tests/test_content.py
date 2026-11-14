@@ -43,6 +43,12 @@ class FakeApi:
         self.schema = 1
         self.down = False
         self.downloads = []
+        self.live = None            # the season the server says is running (None = none)
+
+    def season(self):
+        if self.down:
+            raise OnlineError("network", "Can't reach the server.")
+        return {"active": self.live}
 
     def add(self, entry, files):
         self.items.append(entry)
@@ -86,6 +92,29 @@ class ContentCase(unittest.TestCase):
 
 
 class Sync(ContentCase):
+    def test_the_season_theme_is_lent_to_everybody_while_it_runs(self):
+        theme = {"themes/frost/board/board.png": png((9, 9, 9)), "themes/frost/palette.json": b'{"WOOD":[1,2,3]}'}
+        self.api.add(item("frost", "board_theme", theme, acquisition="grant", price=0), theme)
+        self.api.owned = []                                          # the player does not own it
+        self.api.live = {"code": "winter", "name": "Winter", "theme": {"code": "frost"}, "remainingSeconds": 3600}
+        store = self.store()
+        store.sync_async(force=True)
+        self.assertTrue(wait(store))
+        self.assertTrue((self.tmp / "content" / "themes" / "frost" / "board" / "board.png").is_file(), "files are fetched although not owned")
+        self.assertEqual(store.lent_theme(), "frost")
+        self.assertIn("frost", cosmetics.OWNED)
+        self.assertEqual(store.season["code"], "winter")
+        self.api.live = None                                         # the season is over: the loan ends, the theme is not kept
+        store.sync_async(force=True)
+        wait(store)
+        self.assertIsNone(store.lent_theme())
+        self.assertNotIn("frost", cosmetics.OWNED)
+        self.api.live = {"code": "winter", "name": "Winter", "theme": {"code": "frost"}, "remainingSeconds": 0}
+        store.sync_async(force=True)
+        wait(store)
+        self.assertIsNone(store.season, "a season whose time is over is not shown")
+
+
     def test_songs_from_the_server_are_downloaded_and_offered_to_the_player(self):
         song = {"music/night_train.ogg": b"OggS" + bytes(3000)}
         fake = {"music/fake_song.ogg": b"RIFF" + bytes(3000)}

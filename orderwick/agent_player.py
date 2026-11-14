@@ -24,11 +24,14 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--agent", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--server", default="")
     ap.add_argument("--key", default="", help="activation key from the website account page")
-    ap.add_argument("--mode", choices=["campaign", "hard"], default="hard")
+    ap.add_argument("--mode", choices=["campaign", "hard", "daily", "tour"], default="hard",
+                    help="tour = no game, only the screens; daily = today's daily board (one board, one result per day; online it is recorded on the server)")
+    ap.add_argument("--tour", action="store_true", help="after the run visit the other screens (trophies, leaderboards, online, settings...)")
     ap.add_argument("--boards", type=int, default=1, help="boards to solve before the run is finished")
     ap.add_argument("--pace", type=float, default=0.22, help="seconds between two key presses (how fast the moves look)")
     ap.add_argument("--home", default="", help="save folder (default: a fresh temporary one, so the run starts clean)")
     ap.add_argument("--nick", default="", help="nickname for the online account (3-12 letters, digits, - or _)")
+    ap.add_argument("--size", default="1280x800", help="window size; the screen you record must be exactly this big")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--shots", default="", help="folder for screenshots of the important moments")
@@ -42,6 +45,7 @@ def prepare(argv: list[str]) -> argparse.Namespace:
         os.environ["ORDERWICK_SERVER"] = args.server
     os.environ["ORDERWICK_HOME"] = args.home or tempfile.mkdtemp(prefix="claude-player-")
     os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+    os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "0,0")          # the window starts in the corner: a recording of the screen shows all of it
     return args
 
 

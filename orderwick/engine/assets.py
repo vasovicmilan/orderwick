@@ -36,7 +36,7 @@ class AssetManager:
 
     @staticmethod
     def _read_frame(directory: Path | None) -> dict | None:
-        """frame.json: {"style": "flames" | "vines" | "storm", "fps": 4..30}. Anything invalid means no frame."""
+        """frame.json: {"style": "flames" | "vines" | "storm" | "gears" | "neon" | "matrix" | "frost" | "christmas" | "easter", "fps": 4..30}. Anything invalid means no frame."""
         if directory is None or not (directory / "frame.json").exists():
             return None
         import json

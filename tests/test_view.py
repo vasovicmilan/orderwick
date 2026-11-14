@@ -301,7 +301,7 @@ class AnimatedFrame(unittest.TestCase):
         import json
         import tempfile
         assets = AssetManager(config.SPRITES_DIR)
-        for raw, expected in (({"style": "flames", "fps": 12}, "flames"), ({"style": "nope"}, None), ({"style": "storm", "fps": 999}, "storm")):
+        for raw, expected in (({"style": "flames", "fps": 12}, "flames"), ({"style": "nope"}, None), ({"style": "storm", "fps": 999}, "storm"), ({"style": "gears"}, "gears"), ({"style": "neon"}, "neon"), ({"style": "matrix"}, "matrix"), ({"style": "frost"}, "frost"), ({"style": "christmas"}, "christmas"), ({"style": "easter"}, "easter")):
             with tempfile.TemporaryDirectory() as d:
                 (Path(d) / "frame.json").write_text(json.dumps(raw))
                 assets.set_theme(Path(d))

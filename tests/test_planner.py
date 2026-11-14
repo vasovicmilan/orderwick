@@ -76,3 +76,15 @@ class LoopGuardTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShortestRevealTest(unittest.TestCase):
+    def test_no_shuffling_on_a_hard_board(self):
+        """The player turns cards over by the shortest route: a hard board is solved in far fewer moves than a shuffling player needs."""
+        import random
+        from tools.tune_planner import play_board
+        moves = []
+        for seed in range(3):
+            won, m, *_ = play_board(12, random.Random(seed), VisiblePlayer(seed=seed))
+            moves.append(m)
+        self.assertLess(sum(moves) / len(moves), 150)

@@ -50,6 +50,9 @@ def main() -> None:
         code = 1
         try:
             code = agent(sys.argv[1:])
+        except BaseException:
+            import traceback
+            traceback.print_exc()                           # a crash of the player must leave a trace
         finally:
             sys.stdout.flush()
             sys.stderr.flush()

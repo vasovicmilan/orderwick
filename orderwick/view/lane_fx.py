@@ -13,6 +13,7 @@ from collections import Counter
 import pygame
 
 from .board_skin import BORDER, CELL, LANE_TOP, PITCH
+from .frame_fx import TAU, draw_gear, teeth_for
 
 LOOP = 48                                   # frames per loop (at 10 fps: about 5 seconds)
 
@@ -77,7 +78,59 @@ def _recolour(style, colour, grad, x, phase, brighter, t01, depth):
         hum = 0.5 + 0.5 * math.sin(2 * math.pi * (t01 * 2 + phase))
         out = _mix(colour, (170, 224, 255), 0.18 * hum) if brighter else _mix(colour, grad, 0.2 * hum)
         return _mix(out, (226, 242, 255), 0.6 * flash) if brighter else _mix(out, (60, 90, 170), 0.4 * flash)
+    lane = max(0, (x - BORDER) // PITCH)
+    if style == "gears":                                                       # a brass glint sweeps down the lanes, lane after lane
+        front = t01 * 1.5 - 0.25 - lane * 0.045
+        glow = math.exp(-((depth - front) ** 2) / 0.006)
+        return _mix(colour, (255, 240, 190), 0.75 * glow) if brighter else _mix(colour, grad, 0.25 * glow)
+    if style == "neon":                                                        # data pulses run down the lanes, pink in odd lanes and cyan in even ones
+        front = ((t01 + _hash01(lane, 3)) % 1.0) * 1.5 - 0.2
+        d = depth - front
+        hot = (0, 236, 255) if lane % 2 == 0 else (255, 70, 190)
+        if brighter:
+            k = 1.0 if abs(d) < 0.02 else max(0.0, 1 + d / 0.3) if d < 0 else 0.0
+            return _mix(colour, (236, 255, 255) if abs(d) < 0.02 else hot, 0.85 * k)
+        return _mix(colour, grad, 0.3 * (0.5 + 0.5 * math.sin(2 * math.pi * (t01 * 2 + phase))))
+    if style == "matrix":                                                      # rain: a bright head falls through the code of every lane
+        k = 1 + (lane % 2)
+        front = ((t01 * k + _hash01(lane, 4)) % 1.0) * 1.5 - 0.2
+        d = front - depth                                                      # > 0: below the head's trail start (already passed)
+        if brighter:
+            if 0 <= d < 0.03:
+                return (214, 255, 224)
+            if 0.03 <= d < 0.4:
+                return _mix(colour, (70, 255, 120), 0.9 * (1 - d / 0.4))
+            return _mix(colour, grad, 0.3)
+        return colour
+    if style in ("frost", "christmas", "easter"):
+        glow = max(0.0, math.sin(2 * math.pi * (t01 * 2 + phase))) ** 8        # every speck twinkles at its own time
+        if style == "frost":
+            if brighter:
+                return _mix(colour, (255, 255, 255), 0.9 * glow)
+            shimmer = 0.5 + 0.5 * math.sin(2 * math.pi * (t01 - depth * 0.6 - x / 140.0))      # a cold shimmer sweeps along
+            return _mix(colour, grad, 0.35 * shimmer)
+        if style == "christmas":
+            if brighter:
+                return _mix(colour, (255, 252, 214), 0.85 * glow)
+            return _mix(colour, grad, 0.2 * glow)
+        if brighter:                                                           # easter: flowers nod in a spring breeze
+            breeze = max(0.0, math.sin(2 * math.pi * (t01 - x / 100.0))) ** 4
+            return _mix(colour, (255, 255, 236), 0.6 * breeze)
+        return colour
     return colour
+
+
+def _snow(overlay, n, top, bottom, t01, count, colours):
+    height = bottom - top
+    for c in range(n):
+        x0 = BORDER + PITCH * c
+        for j in range(count):
+            seed = _hash01(c, j, 41)
+            u = (t01 + seed) % 1.0                                              # falls from the top (0) to the bottom (1)
+            y = top + 3 + round(u * (height - 8))
+            x = x0 + 3 + int(_hash01(c, j, 42) * 10) + round(1.5 * math.sin(2 * math.pi * (t01 + seed)))
+            if 0.04 < u < 0.96:
+                overlay.set_at((x, y), colours[(c + j) % len(colours)] + (255,))
 
 
 def _extras(style, overlay, n, k, f):
@@ -117,6 +170,69 @@ def _extras(style, overlay, n, k, f):
                 for gx in (x - 1, x + 1):
                     if overlay.get_at((gx, y))[3] == 0:
                         overlay.set_at((gx, y), (120, 190, 255, 200))
+
+
+    elif style == "gears":                                                      # a few small cogs turning slowly in the lanes
+        for c in range(n):
+            if _hash01(c, 21) > 0.55:
+                continue
+            cx = BORDER + PITCH * c + 8.0
+            cy = top + height * (0.2 + 0.6 * _hash01(c, 22))
+            rot = (1 if c % 2 else -1) * TAU / 8 * t01 + _hash01(c, 23) * TAU
+            pal = [(212, 164, 92), (170, 120, 62), (128, 84, 44), (88, 56, 32), (52, 34, 24)]
+            draw_gear(lambda x, y, col: overlay.set_at((x, y), col + (200,)), cx, cy, 4.5, teeth_for(4.5), rot, pal)
+    elif style == "neon":                                                       # a scan line down the board and a glitch in one lane
+        sy = top + int(height * ((t01 * 1.2) % 1.0))
+        for c in range(n):
+            x0 = BORDER + PITCH * c
+            for dx in range(CELL):
+                overlay.set_at((x0 + dx, sy), (120, 240, 255, 70))
+        if f in (30, 31, 32):
+            lane = int(_hash01(f // 3, n, 5) * n)
+            x0 = BORDER + PITCH * lane
+            gy = top + int(height * (0.2 + 0.6 * _hash01(lane, 6)))
+            off = (-2, 2, 0)[f - 30]
+            for dx in range(CELL):
+                xx = x0 + (dx + off) % CELL
+                overlay.set_at((xx, gy), (255, 60, 180, 230))
+                overlay.set_at((x0 + dx, gy + 1), (0, 236, 255, 200))
+    elif style == "frost":                                                      # snow falling through the lanes
+        _snow(overlay, n, top, bottom, t01, 2, [(255, 255, 255), (206, 236, 255)])
+    elif style == "christmas":                                                  # snow and one gold sparkle per loop
+        _snow(overlay, n, top, bottom, t01, 1, [(255, 255, 255), (255, 244, 200)])
+        if f < 6:
+            lane = int(_hash01(n, k, 77) * n)
+            cx, cy = BORDER + PITCH * lane + 8, top + int(height * 0.3)
+            arm = (0, 1, 2, 2, 1, 0)[f]
+            for i in range(arm + 1):
+                for dx, dy in ((i, 0), (-i, 0), (0, i), (0, -i)):
+                    overlay.set_at((cx + dx, cy + dy), (255, 236, 130, 255) if i else (255, 255, 240, 255))
+    elif style == "easter":                                                     # petals drift down, two butterflies flutter up the lanes
+        _snow(overlay, n, top, bottom, t01, 1, [(255, 190, 214), (255, 255, 240)])
+        for j, (col, lane_seed) in enumerate(((  (255, 214, 80), 1), ((255, 140, 190), 2))):
+            lane = int(_hash01(n, k, 90 + j) * n)
+            u = (t01 * 1 + j * 0.5) % 1.0
+            y = bottom - 4 - round(u * (height - 10))
+            x = BORDER + PITCH * lane + 8 + round(4 * math.sin(2 * math.pi * (t01 * 3 + j * 0.3)))
+            if 0.05 < u < 0.95:
+                overlay.set_at((x, y), (60, 40, 60, 255))
+                wings = ((-1, 0), (1, 0), (-2, -1), (2, -1)) if (f // 2) % 2 == 0 else ((-1, 0), (1, 0))
+                for (a, b) in wings:
+                    overlay.set_at((x + a, y + b), col + (255,))
+    elif style == "matrix":                                                     # the falling head itself, so the rain shows even where the lane has no code
+        for c in range(n):
+            x0 = BORDER + PITCH * c
+            k = 1 + (c % 2)
+            front = ((t01 * k + _hash01(c, 4)) % 1.0) * 1.5 - 0.2
+            y = top + int(front * height)
+            xs = x0 + 2 + int(_hash01(c, 31) * 9)
+            for j in range(0, 7):
+                yy = y - j * 2
+                if top < yy < top + height:
+                    col = (214, 255, 224, 255) if j == 0 else (70, 255, 120, 255 - j * 34)
+                    for dx in range(3):
+                        if _hash01(c, j, dx, f // 4) > 0.25:
+                            overlay.set_at((xs + dx, yy), col)
 
 
 class LaneFx:

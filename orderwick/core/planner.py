@@ -223,9 +223,52 @@ def progress_of(obs: Observation) -> float:
     return done * 100.0 - hidden_left * 10.0 - sum(1 for f in obs.free if f is not None)
 
 
+REVEAL_AFTER = 2       # moves without progress before the player stops "improving" and looks for the shortest way to turn a card over (tools/tune_moves.py: 172 -> 126 moves on level 15)
+REVEAL_DEPTH = 9
+REVEAL_WIDTH = 500
+
+
+def _reveal_path(obs: Observation, guard: LoopGuard, w: Weights, use_tabu: bool, max_depth: int = REVEAL_DEPTH,
+                 width: int = REVEAL_WIDTH):
+    """The shortest sequence of moves that turns a face-down card over (breadth first, cheapest end position among equals).
+    Returns (first move, length) or None. Only face-up cards are used, as everywhere in this module."""
+    cap = obs.capacity
+    cols0, free0 = obs.state(), tuple(obs.free)
+    root_key = key_of(cols0, free0)
+    seen = {root_key}
+    frontier = [(cols0, free0, None)]
+    for d in range(1, max_depth + 1):
+        goals, nxt = [], []
+        for cols, free, first in frontier:
+            for nc, nf, mv, dirty in successors(cols, free, cap):
+                f = first or mv
+                if d == 1 and use_tabu and (root_key, mv) in guard.tabu:
+                    continue
+                if dirty:
+                    goals.append((evaluate(nc, nf, cap, w) - 30.0 * guard.seen(key_of(nc, nf)), f))
+                    continue
+                k = key_of(nc, nf)
+                if k in seen:
+                    continue
+                seen.add(k)
+                nxt.append((evaluate(nc, nf, cap, w) - 30.0 * guard.seen(k), nc, nf, f))
+        if goals:
+            goals.sort(key=lambda g: -g[0])
+            return goals[0][1], d
+        if not nxt:
+            return None
+        nxt.sort(key=lambda x: -x[0])
+        frontier = [(c, f, m) for _v, c, f, m in nxt[:width]]
+    return None
+
+
 def choose_move(obs: Observation, guard: LoopGuard, w: Weights | None = None, depth: int = 5, beam: int = 70,
                 rng: random.Random | None = None, explore: float = 0.0, use_tabu: bool = True) -> tuple[Move | None, float]:
     """The best first move and its value, or (None, 0) when the position has no legal move."""
+    if guard.stagnant >= REVEAL_AFTER and not explore:
+        found = _reveal_path(obs, guard, w or Weights(), use_tabu)
+        if found:
+            return found[0], 0.0
     move, val = _search(obs, guard, w, depth, beam, rng, explore, use_tabu)
     if move is None and use_tabu and guard.tabu:             # every move was banned earlier: a banned move beats giving up
         move, val = _search(obs, guard, w, depth, beam, rng, explore, False)

@@ -100,3 +100,7 @@ The game contains a player that presses the real keys like a human (visible card
 
 It needs a Linux machine with a screen (or `xvfb-run`). To let Claude play and record: send Claude the Linux build
 (`Orderwick-<version>-linux.tar.gz`) and an activation key from your own account page on the website. Options: `--help`.
+
+Modes: `--mode daily` (today's daily board, recorded on the server when online), `--mode hard`, `--mode campaign`, `--mode tour` (no game, only
+the screens); `--tour` adds the tour after a daily run. Use `--home <folder>` to keep the same online player between runs (a fresh temporary
+folder means a NEW player every time). Recording of the whole window: `tools/record_agent.sh out.mp4 --mode daily --tour --key OW-... --server https://orderwick.com`.

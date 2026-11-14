@@ -60,7 +60,7 @@ class LeaderboardScene(NativeScene):
         kit.text(canvas, self.title, (nw // 2, 12), GOLD, "midtop", big=True)
 
         self.tab_rects = []
-        tw = 84
+        tw = min(84, (panel.w - 16) // len(self.tabs) - 4)
         x = nw // 2 - (len(self.tabs) * (tw + 4) - 4) // 2
         for i, (_mode, title) in enumerate(self.tabs):
             r = pygame.Rect(x + i * (tw + 4), 30, tw, 16)

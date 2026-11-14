@@ -113,6 +113,19 @@ class HardMode(CampaignMode):
         super().__init__(LevelCatalog.final_level())
 
 
+class SeasonMode(HardMode):
+    """The Season: the hardest board, the level (and with it every board's worth) keeps growing, no rescue and no new board.
+    A stuck board ends the run. Ranked only online, on the season's own leaderboard."""
+
+    id = "season"
+    title = "Season"
+    short_title = "SEASON"
+    no_rescue_message = "There is no rescue in the Season. Undo a move, or the run ends when you are stuck."
+
+    def rescue_level(self, level: int) -> int | None:
+        return None
+
+
 class CustomMode(Mode):
     """Custom board: width, free slots and height of your choice. Not on the leaderboard."""
 

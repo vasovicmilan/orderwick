@@ -51,7 +51,11 @@ def run(args) -> int:
     from orderwick.agent_player import say
     agent_player.open_log(Path(os.environ["ORDERWICK_HOME"]) / "agent.log")
     app = OrderwickGame()
-    app.screen = pygame.display.set_mode((1280, 800), pygame.RESIZABLE)
+    try:
+        width, height = (int(v) for v in args.size.lower().split("x"))
+    except ValueError:
+        width, height = 1280, 800
+    app.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
     player = VisiblePlayer(seed=args.seed)
     shots = Path(args.shots) if args.shots else None
     if shots:
@@ -69,6 +73,41 @@ def run(args) -> int:
     def press(k, ch=""):
         d.key(k, ch)
 
+    def menu_to(index: int):
+        """Moves the menu focus to an item the way a player would: key presses, the shortest way round."""
+        grp = scene().group
+        n = len(grp.widgets)
+        down = (index - grp.focus) % n
+        step, count = (pygame.K_DOWN, down) if down <= n - down else (pygame.K_UP, n - down)
+        for _ in range(count):
+            press(step); yield 0.3
+
+    def visit(index: int, dwell: float, name: str, extra=None):
+        """Opens a menu screen, shows it for a moment, goes back."""
+        yield from menu_to(index)
+        press(pygame.K_RETURN); yield 1.2
+        shot(name); yield dwell
+        if extra:
+            yield from extra()
+        press(pygame.K_ESCAPE); yield 1.0
+
+    def tour_all():
+        say("tour: the other screens")
+        yield from visit(2, 3.0, "tour_daily")               # Daily: the board is marked as solved
+        yield from visit(4, 3.0, "tour_trophies")
+        yield from visit(5, 3.0, "tour_leaderboard", lambda: _tab())
+        yield from visit(6, 2.0, "tour_online", lambda: _online_board())
+        yield from visit(7, 2.5, "tour_settings")
+        yield from visit(8, 2.5, "tour_help")
+        yield from visit(9, 2.5, "tour_about")
+        yield from to_menu()
+
+    def to_menu():
+        for _ in range(6):
+            if isinstance(scene(), MenuScene):
+                return
+            press(pygame.K_ESCAPE); yield 1.2
+
     def script():
         yield 2.5
         shot("menu")
@@ -76,22 +115,28 @@ def run(args) -> int:
             say("opening the Online screen and typing the activation key")
             for _ in range(6):                                   # Campaign, Hard, Daily, Custom, Trophies, Leaderboard -> Online
                 press(pygame.K_DOWN); yield 0.35
-            press(pygame.K_RETURN); yield 1.0
-            press(pygame.K_RETURN); yield 1.0                    # "Enter activation key"
-            for ch in args.key:
-                d.type_char(ch); yield 0.12
-            shot("key")
-            yield 0.6
-            press(pygame.K_RETURN)
-            yield lambda: app.online.activated
-            say("activated for", app.online.account_name)
-            yield 1.5
-            press(pygame.K_RETURN)                               # "Turn on online"
-            yield lambda: app.online.enabled
+            press(pygame.K_RETURN); yield 1.0                    # open the Online screen
+            if not app.online.activated:
+                press(pygame.K_RETURN); yield 1.0                # "Enter activation key"
+                for ch in args.key:
+                    d.type_char(ch); yield 0.12
+                shot("key")
+                yield 0.6
+                press(pygame.K_RETURN)
+                yield lambda: app.online.activated
+                say("activated for", app.online.account_name)
+                yield 1.5
+            if not app.online.enabled:
+                press(pygame.K_RETURN)                           # "Turn on online"
+                yield lambda: app.online.enabled
             say("online is on as", app.online.nickname or "?")
             yield 1.5
             if args.nick:
-                press(pygame.K_DOWN); yield 0.4
+                for _ in range(8):                                    # walk down to the "Change nickname" button
+                    grp = getattr(scene(), "group", None)
+                    if grp is not None and grp.widgets[grp.focus].text == "Change nickname":
+                        break
+                    press(pygame.K_DOWN); yield 0.4
                 press(pygame.K_RETURN); yield 0.8                 # "Change nickname"
                 for _ in range(16):
                     press(pygame.K_BACKSPACE); yield 0.04
@@ -104,14 +149,28 @@ def run(args) -> int:
                 shot("nick_done")
                 say("nickname is now", app.online.nickname, "|", getattr(scene(), "status", ""))
                 yield 1.2
-                press(pygame.K_UP); yield 0.4
+                for _ in range(8):
+                    grp = getattr(scene(), "group", None)
+                    if grp is None or grp.focus == 0:
+                        break
+                    press(pygame.K_UP); yield 0.4
             shot("online")
             press(pygame.K_ESCAPE); yield 1.2
             for _ in range(6):
                 press(pygame.K_UP); yield 0.25
         else:
             yield 0.5
-        if args.mode == "hard":
+        if args.mode == "tour":
+            yield from tour_all()
+            yield 2.0
+            app.quit()
+            return
+        if args.mode == "daily":
+            yield from menu_to(2)
+            press(pygame.K_RETURN); yield 1.5                    # the Daily screen: today's three tasks
+            shot("daily"); yield 3.0
+            press(pygame.K_RETURN)                                # "Play today's board"
+        elif args.mode == "hard":
             press(pygame.K_DOWN); yield 0.4 if not args.key else 0.01
             press(pygame.K_RETURN)
         else:
@@ -133,8 +192,8 @@ def run(args) -> int:
                 stats["boards"] += 1
                 say(f"board {stats['boards']} solved: level {rnd.level}, {rnd.moves} moves, {rnd.elapsed:.0f}s, score {gs.session.score}")
                 shot(f"won_{stats['boards']}")
-                yield 4.0
-                if stats["boards"] >= args.boards:
+                yield 5.0
+                if args.mode == "daily" or stats["boards"] >= args.boards:
                     break
                 press(pygame.K_RETURN)
                 yield 0.5
@@ -142,7 +201,8 @@ def run(args) -> int:
                 player.new_board()
                 continue
             board = rnd.board
-            act = player.decide(observe(board), rnd.undo is not None, board.n_free < board.max_free)
+            can_rescue = board.n_free < board.max_free and args.mode != "daily"      # the daily board has no rescue
+            act = player.decide(observe(board), rnd.undo is not None, can_rescue)
             if args.debug and stats["moves"] < 14:
                 say("DEBUG", act, "sel", gs.selected, "free", board.free, "n", [len(c) for c in board.columns], gs.msg)
             if act.kind == "move":
@@ -176,11 +236,30 @@ def run(args) -> int:
                 say("giving up:", act.why); break
         shot("end")
         say("finishing the run")
+        if args.mode == "daily":
+            press(pygame.K_RETURN); yield 2.0                        # "Back to menu" on the result screen
+            yield from to_menu()
+            if args.tour:
+                yield from tour_all()
+            yield 3.0
+            app.quit()
+            return
         press(pygame.K_ESCAPE); yield 1.5
         if not isinstance(scene(), (MenuScene, GameScene)):          # leaderboard name entry
             press(pygame.K_RETURN); yield 1.5
         yield 3.0
         app.quit()
+
+    def _tab():
+        press(pygame.K_RIGHT); yield 2.0
+
+    def _online_board():
+        press(pygame.K_RETURN); yield 2.0                            # "Online leaderboard"
+        for _ in range(2):                                           # Hard mode -> Campaign -> Daily: today's result
+            press(pygame.K_RIGHT); yield 0.8
+        yield 2.5
+        shot("tour_online_board"); yield 5.0
+        press(pygame.K_ESCAPE); yield 1.0
 
     d.gen = script()
     app.running = True
@@ -203,5 +282,5 @@ def run(args) -> int:
     app.on_shutdown()
     say("done:", stats)
     pygame.quit()
-    return 0 if stats["boards"] >= args.boards else 1
+    return 0 if (stats["boards"] >= args.boards or args.mode == "tour") else 1
 

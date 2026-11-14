@@ -11,7 +11,7 @@ from ..data.storage import JsonStore, default_data_dir
 from .client import ApiClient, OnlineError
 from .remote import RemoteRun
 
-ONLINE_MODES = ("campaign", "hard", "daily")
+ONLINE_MODES = ("campaign", "hard", "daily", "season")
 
 
 def platform_name() -> str:
@@ -230,6 +230,15 @@ class OnlineService:
     # ---- misc -------------------------------------------------------------------------------------------------------
     def leaderboard(self, mode: str, who: str = "all") -> list[dict]:
         return self.client.leaderboard(mode, who)["entries"]
+
+    def season_info(self) -> dict:
+        return self.client.season()
+
+    def season_rewards_seen(self) -> None:
+        try:
+            self.client.season_seen()
+        except OnlineError:
+            pass
 
     def latest_version(self) -> dict:
         return self.client.latest_version()

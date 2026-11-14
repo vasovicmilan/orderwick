@@ -47,7 +47,7 @@ class ContentStore:
         base = directory or default_data_dir()
         self.dir = base / "content"
         self.store = store or JsonStore("content.json", directory)
-        self.state = self.store.load({"manifest": {}, "owned": []})
+        self.state = self.store.load({"manifest": {}, "owned": [], "season": None})
         self.client = client
         self.task: BackgroundTask | None = None
         self.last_sync = -SYNC_EVERY
@@ -64,6 +64,22 @@ class ContentStore:
     @property
     def owned(self) -> set[str]:
         return set(self.state.get("owned") or [])
+
+    @property
+    def season(self) -> dict | None:
+        """The live season as the last sync saw it ({code, name, theme, ends}); None once its time is over."""
+        season = self.state.get("season")
+        if isinstance(season, dict) and float(season.get("ends", 0)) > time.time():
+            return season
+        return None
+
+    def lent_theme(self) -> str | None:
+        """The season's board theme, lent to everybody while the season runs (only once its files are on disk)."""
+        season = self.season
+        if not season:
+            return None
+        item = next((i for i in self.items if i["code"] == season.get("theme") and i["kind"] == "board_theme"), None)
+        return season["theme"] if item and self._present(item) else None
 
     def owned_cards(self) -> list[str]:
         return [i["code"] for i in self.items if i["kind"] == "card" and i["code"] in self.owned and self._present(i)]
@@ -88,7 +104,7 @@ class ContentStore:
         self._cards = set()
         for table in (config.BOARD_THEMES, config.CARD_STYLES):
             table[:] = [row for row in table if not str(row[2] or "").startswith("item:")]
-        cosmetics.OWNED = set(self.owned)
+        cosmetics.OWNED = set(self.owned) | ({self.lent_theme()} if self.lent_theme() else set())
         cosmetics.ITEM_INFO.clear()
         for item in self.items:
             code, kind = item["code"], item["kind"]
@@ -139,7 +155,25 @@ class ContentStore:
                 if fetched > MAX_FILES_PER_SYNC:
                     break
                 self._ensure(rel, meta)
-        return {"manifest": manifest, "owned": owned, "currency": inventory.get("currency")}
+        season = self._season_work(manifest)
+        return {"manifest": manifest, "owned": owned, "currency": inventory.get("currency"), "season": season}
+
+    def _season_work(self, manifest: dict) -> dict | None:
+        """The live season and its theme: the theme's files are fetched for everybody, owner or not (it is lent)."""
+        try:
+            live = (self.client.season() or {}).get("active")
+        except OnlineError:
+            return self.state.get("season")                 # offline: keep what we knew
+        if not live:
+            return None
+        theme = (live.get("theme") or {}).get("code")
+        item = next((i for i in manifest.get("items", []) if i.get("code") == theme), None)
+        if item is None:
+            return None
+        for rel, meta in (item.get("files") or {}).items():
+            self._ensure(rel, meta)
+        ends = time.time() + max(0, int(live.get("remainingSeconds", 0)))
+        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "ends": ends}
 
     def _ensure(self, rel: str, meta: dict) -> bool:
         """Makes sure one file is in the cache with exactly the content the manifest promises. False = skipped."""
@@ -176,7 +210,7 @@ class ContentStore:
             return False
         result = task.result or {}
         self.last_error = ""
-        self.state.update(manifest=result["manifest"], owned=result["owned"])
+        self.state.update(manifest=result["manifest"], owned=result["owned"], season=result.get("season"))
         self.store.save(self.state)
         self.register()
         return True

@@ -35,6 +35,7 @@ class GameScene(Scene):
         self.msg = ""
         self.msg_ttl = 0.0
         self.restart_confirm = 0.0
+        self.stuck_for = 0.0                   # Season: how long the board has had no moves and no undo
         self.load_task: BackgroundTask | None = None
         self.rescue_task: BackgroundTask | None = None
         self.prefetch: tuple[int, BackgroundTask] | None = None   # (level, task) of the next board
@@ -149,6 +150,9 @@ class GameScene(Scene):
 
     def _restart(self) -> None:
         if self.loading or self.rescue_task:
+            return
+        if self.session.mode.id == "season":
+            self._say("There are no new boards in the Season. Finish this one.")
             return
         if self.session.mode.id == "daily":                 # the same board again, from the start (no penalty)
             if not self.rnd.won:
@@ -376,17 +380,28 @@ class GameScene(Scene):
             return
 
         self.session.tick(dt)
+        self._season_stuck(dt)
         if self.session.remote is not None:                  # the server's verdict on a solved board, or a note that the run went offline
             note = self.session.remote.poll(self.session)
             if note:
                 self._say(note, 8)
+
+    def _season_stuck(self, dt: float) -> None:
+        """Season: no rescue. A board with no move left and nothing to undo ends the run (after a moment to see it)."""
+        rnd = self.rnd
+        if self.session.mode.id != "season" or self._closed or rnd is None or rnd.won or self.loading or rnd.board.has_moves() or rnd.undo is not None:
+            self.stuck_for = 0.0
+            return
+        self.stuck_for += dt
+        if self.stuck_for >= 2.5:
+            self._finish()
 
     # ---- drawing -------------------------------------------------------------------------
     def _hud_enabled(self) -> list[bool]:
         rnd = self.rnd
         if self.loading or rnd is None or rnd.won:
             return [False] * 4
-        return [rnd.undo is not None, True, True, True]
+        return [rnd.undo is not None, True, self.session.mode.id != "season", True]
 
     def _hud_data(self) -> HudData:
         s = self.session
@@ -398,7 +413,9 @@ class GameScene(Scene):
         messages: list[tuple[str, tuple]] = []
         if rnd is not None and not self.loading and not rnd.won and not rnd.board.has_moves():
             messages.append(("NO MOVES LEFT! U = undo, R = restart the board." if s.mode.id == "daily"
-                             else "NO MOVES LEFT! X = rescue, U = undo, R = new board.", BAD))
+                             else ("NO MOVES LEFT! Undo a move, or the run ends." if rnd.undo is not None and s.mode.id == "season"
+                                   else "NO MOVES LEFT! The run ends." if s.mode.id == "season"
+                                   else "NO MOVES LEFT! X = rescue, U = undo, R = new board."), BAD))
         if self.msg:
             messages.append((self.msg, GOLD))
         if not messages and rnd is not None and not self.loading and not rnd.won:
