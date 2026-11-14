@@ -43,6 +43,9 @@ class SeasonScene(NativeScene):
         self.play_button = Button("Play the Season", self._play)
         self.board_button = Button("Season leaderboard", self._board)
         self.group = FocusGroup([self.play_button, self.board_button])
+        self._last_try = 0.0
+        self.waiting_since: float | None = None          # set while the season's board and songs are still being downloaded
+        self.app.content.sync_async(force=True)          # the game may not know this season yet: its board and songs come with the next sync
         self._fetch()
 
     def _fetch(self) -> None:
@@ -61,10 +64,25 @@ class SeasonScene(NativeScene):
         self.app.content.sync_async()
         self._fetch()
 
+    PREPARE_SECONDS = 25.0
+
+    def _theme_ready(self) -> bool:
+        wanted = ((self.info or {}).get("active") or {}).get("theme") or {}
+        return not wanted.get("code") or self.app.content.lent_theme() == wanted.get("code")
+
     def _play(self) -> None:
+        if not (self.info and self.info.get("active") and self.app.online.enabled) or self.waiting_since is not None:
+            return
+        if self._theme_ready():
+            self._start()
+            return
+        self.waiting_since = time.monotonic()            # the run starts as soon as the season's board is on this computer
+        self.app.content.sync_async(force=True)
+
+    def _start(self) -> None:
         from .game import GameScene
-        if self.info and self.info.get("active") and self.app.online.enabled:
-            self.app.scenes.push(GameScene(self.app, self.app.new_session(SeasonMode())))
+        self.waiting_since = None
+        self.app.scenes.push(GameScene(self.app, self.app.new_session(SeasonMode())))
 
     def _board(self) -> None:
         from .online_leaderboard import OnlineLeaderboardScene
@@ -88,6 +106,12 @@ class SeasonScene(NativeScene):
         self.app.scenes.pop()
 
     def update(self, dt: float) -> None:
+        if self.waiting_since is not None:
+            if self._theme_ready() or time.monotonic() - self.waiting_since > self.PREPARE_SECONDS:
+                self._start()                                # (after a timeout the board still joins the run once it has arrived)
+            elif time.monotonic() - self._last_try > 5.0:
+                self._last_try = time.monotonic()
+                self.app.content.sync_async(force=True)      # (does nothing while a sync is still running)
         if self.task is not None and self.task.done:
             task, self.task = self.task, None
             if task.error is not None:
@@ -149,8 +173,9 @@ class SeasonScene(NativeScene):
             kit.text(canvas, str(row["score"]), (box.right - 6, y), TAN, "topright", shadow=False, body=True)
             y += 8
         bw, bh = 120, 14
-        self.play_button.enabled = self.app.online.enabled
-        self.play_button.text = "Play the Season" if self.app.online.enabled else "Turn on Online to play"
+        self.play_button.enabled = self.app.online.enabled and self.waiting_since is None
+        self.play_button.text = ("Downloading the season board..." if self.waiting_since is not None
+                                 else "Play the Season" if self.app.online.enabled else "Turn on Online to play")
         self.play_button.rect = pygame.Rect(nw // 2 - bw - 2, box.bottom + 5, 2 * bw + 4, bh)
         self.board_button.rect = pygame.Rect(nw // 2 - bw - 2, box.bottom + 6 + bh, 2 * bw + 4, bh)
         self.group.draw(canvas, kit)

@@ -290,6 +290,39 @@ class UiFlow(unittest.TestCase):
             del app.content.lent_theme, app.content.season_music_files
             app.apply_appearance()
 
+    def test_06e_the_season_run_waits_for_the_season_board_to_arrive(self):
+        from orderwick.scenes.season import SeasonScene
+        app = self.app
+        app.online.season_info = lambda: {"active": {"code": "winter", "name": "Winter", "theme": {"code": "frost"}, "remainingSeconds": 3600,
+                                                     "prizes": [], "me": None}, "upcoming": None, "rewards": []}
+        app.online.client.leaderboard = lambda *a, **k: {"entries": []}
+        syncs, ready = [], []
+        real_enabled = type(app.online).enabled
+        app.content.sync_async = lambda force=False: syncs.append(force) or True
+        app.content.lent_theme = lambda: "frost" if ready else None
+        try:
+            app.scenes.reset(MenuScene(app))
+            scene = SeasonScene(app)
+            app.scenes.push(scene)
+            for _ in range(200):
+                self.frame()
+                if scene.info:
+                    break
+                time.sleep(0.01)
+            self.assertTrue(syncs and all(syncs), "opening the Season screen forces a sync: the game may not know the season yet")
+            type(app.online).enabled = property(lambda self: True)
+            scene._play()
+            self.assertIsNotNone(scene.waiting_since, "the board is not there yet: the run waits for it")
+            self.assertIs(app.scenes.current, scene)
+            ready.append(1)                                                      # the sync finished
+            self.frame()
+            self.assertIsInstance(app.scenes.current, GameScene)
+            self.assertIsNone(scene.waiting_since)
+        finally:
+            del app.content.sync_async, app.content.lent_theme
+            type(app.online).enabled = real_enabled
+            app.scenes.reset(MenuScene(app))
+
     def test_06c_season_screen_shows_prizes_and_the_reward_popup(self):
         from orderwick.scenes.season import SeasonScene, prize_line
         info = {"active": {"code": "winter", "name": "Frostbound", "remainingSeconds": 90000, "me": {"rank": 3, "best": 1200, "level": 17},
