@@ -29,6 +29,7 @@ jobs:
 
   build:
     needs: test
+    continue-on-error: ${{ matrix.optional == true }}   # a missing Apple-silicon runner must not block the release
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +37,7 @@ jobs:
           # ubuntu-22.04: older glibc => the build also runs on older Linux distributions
           - { os: ubuntu-22.04, label: linux }
           - { os: windows-latest, label: windows }
-          - { os: macos-14, label: macos-arm64 }        # Apple silicon
+          - { os: macos-15, label: macos-arm64, optional: true }   # Apple silicon (macos-14 arm64 was refused: "configuration not supported")
           - { os: macos-15-intel, label: macos-x64 }      # Intel
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
