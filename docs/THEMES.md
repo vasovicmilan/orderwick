@@ -55,3 +55,17 @@ A missing file falls back to the classic card.
 1. Draw it (Aseprite) and put it in the folder above, or extend your `.aseprite` files with more frames/boards and use the importer.
 2. Add the entry to `config.BOARD_THEMES` / `CARD_STYLES`. 3. Run the tests (`Looks` checks that every registered look has its files and
 that boards assemble in every theme).
+
+## Animated frame around the board (`frame.json`)
+
+A board theme can have an animated frame. Put `frame.json` next to `palette.json`:
+
+```json
+{ "style": "flames", "fps": 10 }
+```
+
+Styles: `flames` (Ember), `vines` (Wildwood), `storm` (electric yellow and blue). The frame is generated in code
+(`orderwick/view/frame_fx.py`) for every board size, 28 px wide on every side, 8 frames. A theme without `frame.json`
+(or with an unknown style) has no frame. Themes that come from the server get `frame.json` through the same content
+sync as `board.png` and the HUD files. When a frame is active only 8 of its 28 px are reserved when the board is fitted
+into the window, so it does not shrink the board; on a tight window the outer edge of the frame is clipped.

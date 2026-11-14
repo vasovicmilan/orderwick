@@ -244,3 +244,59 @@ class FontAndHud(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnimatedFrame(unittest.TestCase):
+    """frame.json of a board theme -> animated frame around the board (generated for any size)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pygame.init()
+        pygame.display.set_mode((100, 100))
+
+    def test_every_style_fits_every_board_size(self):
+        from orderwick.view import frame_fx
+        for style in frame_fx.STYLES:
+            for n, k in ((2, 2), (6, 7), (10, 12)):
+                w, h = BoardSkin.native_size(n, k)
+                frames = frame_fx.build_frames(style, w, h)
+                self.assertEqual(len(frames), frame_fx.FRAME_COUNT)
+                for f in frames:
+                    self.assertEqual(f.get_size(), (w + 2 * frame_fx.MARGIN, h + 2 * frame_fx.MARGIN))
+                    self.assertEqual(f.get_at((frame_fx.MARGIN + 5, frame_fx.MARGIN + 5))[3], 0, "the board hole must stay clear")
+                self.assertFalse(same_pixels(frames[0], frames[3]), f"{style} must animate")
+
+    def test_frame_json_is_validated(self):
+        import json
+        import tempfile
+        assets = AssetManager(config.SPRITES_DIR)
+        for raw, expected in (({"style": "flames", "fps": 12}, "flames"), ({"style": "nope"}, None), ({"style": "storm", "fps": 999}, "storm")):
+            with tempfile.TemporaryDirectory() as d:
+                (Path(d) / "frame.json").write_text(json.dumps(raw))
+                assets.set_theme(Path(d))
+                self.assertEqual((assets.theme_frame or {}).get("style"), expected)
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "frame.json").write_text("{broken")
+            assets.set_theme(Path(d))
+            self.assertIsNone(assets.theme_frame)
+        assets.set_theme(None)
+        self.assertIsNone(assets.theme_frame)
+
+    def test_frame_does_not_change_the_layout_much_and_draws(self):
+        import tempfile
+        import json
+        assets = AssetManager(config.SPRITES_DIR)
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "frame.json").write_text(json.dumps({"style": "vines"}))
+            assets.set_theme(Path(d))
+            view = BoardView(assets)
+            board = Board.from_kinds([[0, 1, 2]] * 5 + [[]], 2, 5)
+            surface = pygame.Surface((900, 700))
+            view.layout(board, surface.get_rect(), 3)
+            view.draw(surface, board, pick_palette(random.Random(1), 6))
+            self.assertEqual(view._frame_key[0], "vines")
+            self.assertIsNotNone(assets.theme_frame)
+            assets.set_theme(None)
+            view.draw(surface, board, pick_palette(random.Random(1), 6))
+            self.assertIsNone(view._frame_key)                  # a theme without frame.json draws no frame
+        BoardView.fit_margin = 0

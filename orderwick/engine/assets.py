@@ -17,6 +17,7 @@ class AssetManager:
         self.theme_dir: Path | None = None          # assets/themes/<id> (None = default look)
         self.style_dir: Path | None = None          # assets/card_styles/<id> (None = classic cards)
         self.theme_palette: dict = {}               # text/UI colour roles of the theme (palette.json), {} = defaults
+        self.theme_frame: dict | None = None        # animated frame around the board (frame.json of the theme), None = no frame
         self.extra_sprites_dir: Path | None = None  # cards that came from the server (looked up after the built-in ones)
 
     # ---- looks (see config.BOARD_THEMES / CARD_STYLES) ---------------------------------------------------
@@ -25,12 +26,30 @@ class AssetManager:
             self.theme_dir = directory
             self._sprites.clear()                   # everything cached may have come from the old look
         self.theme_palette = {}
+        self.theme_frame = self._read_frame(directory)
         if directory is not None and (directory / "palette.json").exists():
             import json
             try:
                 self.theme_palette = {k: tuple(v) for k, v in json.loads((directory / "palette.json").read_text()).items()}
             except (OSError, ValueError, TypeError):
                 self.theme_palette = {}
+
+    @staticmethod
+    def _read_frame(directory: Path | None) -> dict | None:
+        """frame.json: {"style": "flames" | "vines" | "storm", "fps": 4..30}. Anything invalid means no frame."""
+        if directory is None or not (directory / "frame.json").exists():
+            return None
+        import json
+        from ..view import frame_fx
+        try:
+            raw = json.loads((directory / "frame.json").read_text())
+            style = raw.get("style")
+            fps = float(raw.get("fps", 10))
+        except (OSError, ValueError, TypeError, AttributeError):
+            return None
+        if style not in frame_fx.STYLES:
+            return None
+        return {"style": style, "fps": max(4.0, min(30.0, fps))}
 
     def set_card_style(self, directory: Path | None) -> None:
         if directory != self.style_dir:

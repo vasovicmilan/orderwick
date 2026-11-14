@@ -134,6 +134,8 @@ DEFAULT_SETTINGS = {"music_on": True, "music_vol": 50, "sfx_on": True, "sfx_vol"
 # --- looks (unlockable cosmetics) ----------------------------------------------------------------
 # A BOARD THEME restyles the board AND the HUD, dialogs and menus: assets/themes/<id>/ may contain board/board.png and
 # hud/{panel,inset,button,divider,icons,icons_audio}.png; any file that is missing falls back to the default theme.
+# A theme may also have frame.json ({"style": "flames" | "vines" | "storm", "fps": 10}): an animated frame generated around the board
+# for any board size (orderwick/view/frame_fx.py).
 # A CARD STYLE is a full set of card sprites with another background: assets/card_styles/<id>/<card>.png; missing files fall
 # back to the classic card.   Entry = (id, display name, unlock rule); the first entry of each list is the default.
 # Unlock rule: None = always, "all_trophies" = every achievement, or an achievement id (see core/achievements.py).

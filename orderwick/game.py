@@ -54,6 +54,8 @@ class OrderwickGame(App):
                                    else self.content.card_style_dir(style))
         from .view import colors
         colors.apply(self.assets.theme_palette)                  # text / UI colours follow the theme
+        from .view.board_view import BoardView
+        BoardView.fit_margin = BoardView.FRAME_FIT_MARGIN if self.assets.theme_frame else 0
         self._wood_kit = None                                    # menus/dialogs are rebuilt in the new style
 
     def new_session(self, mode):

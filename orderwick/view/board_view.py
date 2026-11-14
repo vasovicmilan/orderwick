@@ -13,6 +13,7 @@ from ..core.board import Board
 from ..core.models import COL, FREE, Loc, col, slot
 from ..engine.assets import AssetManager
 from ..engine.ui import draw_text
+from . import frame_fx
 from .board_skin import BORDER, CELL, GAP, PITCH, BoardSkin
 from .colors import GOLD, TAN
 
@@ -21,8 +22,16 @@ LABEL_HEIGHT = 8       # label height in font pixels (scaled by the same factor 
 
 
 class BoardView:
+    # An animated frame (board theme with frame.json) is frame_fx.MARGIN px wide on every side. When fitting the board into
+    # the window only FRAME_FIT_MARGIN of it is reserved, so a frame does not shrink the board on a tight window: the
+    # outer flames/vines may then be cut by the window edge.
+    FRAME_FIT_MARGIN = 8
+    fit_margin = 0                                 # set by the game when the theme has a frame
+
     def __init__(self, assets: AssetManager):
         self.assets = assets
+        self._frame_key: tuple | None = None
+        self._frame_surfaces: list[pygame.Surface] = []
         self.skin = BoardSkin(assets.image(config.BOARD_IMAGE))
         self.scale = 1
         self.origin = (0, 0)
@@ -41,6 +50,7 @@ class BoardView:
         """The largest integer S at which the board (n_cols x capacity), `extra_native_w` asset pixels at the
         side (e.g. the HUD) and the labels (letters above/below the board, LABEL_HEIGHT * S tall) fit."""
         bw, bh = BoardSkin.native_size(n_cols, capacity)
+        bw, bh = bw + 2 * BoardView.fit_margin, bh + 2 * BoardView.fit_margin
         for s in range(config.MAX_SCALE, 0, -1):
             if ((bw + extra_native_w + 8) * s <= width and min_native_h * s <= height
                     and bh * s + 2 * (LABEL_HEIGHT * s + LABEL_GAP) <= height):
@@ -128,6 +138,7 @@ class BoardView:
         native = self._render_native(board, palette)
         w, h = native.get_size()
         surface.blit(pygame.transform.scale(native, (w * self.scale, h * self.scale)), self.origin)
+        self._draw_frame(surface, w, h)
 
         s = self.scale
         thick = max(2, s)
@@ -146,6 +157,28 @@ class BoardView:
             self._outline(surface, rect, config.COLOR_SELECT, thick + 1, s)
         self._draw_labels(surface, board, cursor, selected)
 
+    def _draw_frame(self, surface: pygame.Surface, w: int, h: int) -> None:
+        """The animated frame of the theme around the board (nothing if the theme has none)."""
+        spec = self.assets.theme_frame
+        if not spec:
+            self._frame_key = None
+            return
+        key = (spec["style"], w, h, self.scale)
+        if key != self._frame_key:
+            try:
+                frames = frame_fx.build_frames(spec["style"], w, h)
+            except Exception as error:                              # a broken frame must never break the game
+                from ..engine.logs import log_error
+                log_error(f"frame {spec['style']}: {error}")
+                self.assets.theme_frame = None
+                return
+            self._frame_surfaces = [pygame.transform.scale(f, (f.get_width() * self.scale, f.get_height() * self.scale))
+                                    for f in frames]
+            self._frame_key = key
+        index = int(pygame.time.get_ticks() * spec["fps"] / 1000) % len(self._frame_surfaces)
+        m = frame_fx.MARGIN * self.scale
+        surface.blit(self._frame_surfaces[index], (self.origin[0] - m, self.origin[1] - m))
+
     def layout_from_board(self, board: Board) -> None:
         """The number of free slots changes during the game (rescue) - refresh without changing the size."""
         self.n_free = board.n_free
@@ -156,12 +189,26 @@ class BoardView:
         for ci in range(board.n_cols):
             r = self.cell_rect(ci, self.capacity)
             active = cursor == col(ci) or selected == col(ci)
+            self._label_chip(surface, config.COL_KEYS[ci], font, r.centerx, rect.bottom + LABEL_GAP, "midtop")
             draw_text(surface, config.COL_KEYS[ci], font,
                       GOLD if active else TAN,
                       (r.centerx, rect.bottom + LABEL_GAP), "midtop")
         for i in range(board.n_free):
             r = self.cell_rect(self._slot_grid_col(i), 0)
             active = cursor == slot(i) or selected == slot(i)
+            self._label_chip(surface, config.FREE_KEYS[i], font, r.centerx, rect.top - LABEL_GAP, "midbottom")
             draw_text(surface, config.FREE_KEYS[i], font,
                       GOLD if active else TAN,
                       (r.centerx, rect.top - LABEL_GAP), "midbottom")
+
+    def _label_chip(self, surface, text, font, x, y, anchor) -> None:
+        """A dark plate behind a key label so it stays readable on top of a frame's animation."""
+        if not self.assets.theme_frame:
+            return
+        w, h = font.size(text) if hasattr(font, "size") else (len(text) * 6 * self.scale, LABEL_HEIGHT * self.scale)
+        pad = self.scale
+        rect = pygame.Rect(0, 0, w + 4 * pad, h + 2 * pad)
+        rect.midtop = (x, y - pad) if anchor == "midtop" else (x, y - rect.height + pad)
+        chip = pygame.Surface(rect.size, pygame.SRCALPHA)
+        chip.fill((14, 13, 24, 205))
+        surface.blit(chip, rect)
