@@ -19,12 +19,12 @@ from ..engine.tasks import BackgroundTask
 from .client import OnlineError
 
 
-def round_from_payload(payload: dict, unlocked, daily: bool) -> Round:
+def round_from_payload(payload: dict, unlocked, daily: bool, families=None) -> Round:
     s = payload["spec"]
     spec = LevelSpec(s["cols"], s["free"], s["k"], s.get("reveal", 1))
     board = Board.from_kinds(payload["kinds"], spec.free, spec.k, spec.reveal)
     # The palette is only cosmetic. The daily board uses the cards everybody has, so it looks the same for everyone.
-    palette = pick_palette(random.Random(payload["seed"]), spec.types, base_cards() if daily else unlocked)
+    palette = pick_palette(random.Random(payload["seed"]), spec.types, base_cards() if daily else unlocked, families)
     return Round(spec, payload["level"], board, palette)
 
 
@@ -86,7 +86,7 @@ class RemoteRun:
                 resp = self.client.restart(self.run_id, list(cur.log) if cur is not None else [])
                 self._score = resp.get("score")
                 payload = resp["round"]
-            return round_from_payload(payload, session.unlocked, daily)
+            return round_from_payload(payload, session.unlocked, daily, getattr(session, "families", None))
         except OnlineError as err:
             self._fail(err, "Could not get a board from the server.")
             return None

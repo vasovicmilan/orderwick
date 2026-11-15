@@ -290,6 +290,44 @@ class UiFlow(unittest.TestCase):
             del app.content.lent_theme, app.content.season_music_files
             app.apply_appearance()
 
+    def test_06f_a_daily_run_uses_the_look_of_the_day_and_its_card_set(self):
+        from orderwick.core.daily_board import DailyBoardMode
+        scenes, app = self.app.scenes, self.app
+        app.settings.data["board_theme"], app.settings.data["card_style"] = "wood", "classic"
+        folder = Path(tempfile.mkdtemp()) / "gifts"
+        folder.mkdir()
+        families = {"gifts": [], "baubles": []}
+        for i in range(12):
+            pygame.image.save(pygame.Surface((16, 16), pygame.SRCALPHA), str(folder / f"gift_{i}.png"))
+            families["gifts" if i % 2 else "baubles"].append(f"gift_{i}")
+        look = {"theme": "emerald", "style": "gold", "set": "gifts", "families": families}
+        app.content.lent_look = lambda mode_id: look if mode_id == "daily" else {}
+        app.content.card_set_dir = lambda code: folder if code == "gifts" else None
+        try:
+            scenes.reset(MenuScene(app))
+            app.sync_season_look()
+            self.assertEqual(app.run_look, "")
+            session = app.new_session(DailyBoardMode("2026-01-01"))
+            self.assertEqual(session.families, families, "the day's card set is dealt")
+            self.assertEqual(app.new_session(SeasonMode()).families, None, "a mode without a lent look keeps the player's cards")
+            scenes.push(GameScene(app, session))
+            app.sync_season_look()
+            self.assertEqual(app.run_look, "daily")
+            self.assertEqual(app.assets.set_dir, folder)
+            self.assertEqual(app.assets.style_dir, config.CARD_STYLES_DIR / "gold")
+            self.assertEqual(app.assets.theme_dir, config.THEMES_DIR / "emerald")
+            rnd = session.create_round()
+            self.assertTrue(all(name.startswith("gift_") for name in rnd.palette), rnd.palette)
+            self.assertEqual(app.settings.data["card_style"], "classic", "the player's own choice is not touched")
+            scenes.pop()
+            app.sync_season_look()
+            self.assertEqual(app.run_look, "")
+            self.assertIsNone(app.assets.set_dir)
+            self.assertIsNone(app.assets.style_dir, "back to the player's own look")
+        finally:
+            del app.content.lent_look, app.content.card_set_dir
+            app.apply_appearance()
+
     def test_06e_the_season_run_waits_for_the_season_board_to_arrive(self):
         from orderwick.scenes.season import SeasonScene
         app = self.app

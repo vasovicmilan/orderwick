@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from .. import config
-from ..core import cosmetics
+from ..core import cardsets, cosmetics
 from ..data.storage import JsonStore, default_data_dir
 from ..engine.tasks import BackgroundTask
 from .client import OnlineError
@@ -35,6 +35,7 @@ _PATH_RE = re.compile(
     rf"|avatars/{_NAME}\.png"
     rf"|music/{_NAME}\.ogg"
     rf"|card_styles/{_NAME}/[a-z0-9_]{{2,40}}\.png"
+    rf"|card_sets/{_NAME}/([a-z0-9_]{{2,40}}\.png|families\.json)"
     rf"|themes/{_NAME}/(board/board\.png|hud/(panel|inset|button|divider|icons|icons_audio)\.png|palette\.json|frame\.json))$")
 
 
@@ -56,7 +57,7 @@ class ContentStore:
         base = directory or default_data_dir()
         self.dir = base / "content"
         self.store = store or JsonStore("content.json", directory)
-        self.state = self.store.load({"manifest": {}, "owned": [], "season": None})
+        self.state = self.store.load({"manifest": {}, "owned": [], "season": None, "daily": None})
         self.client = client
         self.task: BackgroundTask | None = None
         self.last_sync = -SYNC_EVERY
@@ -81,6 +82,43 @@ class ContentStore:
         if isinstance(season, dict) and float(season.get("ends", 0)) > time.time():
             return season
         return None
+
+    @property
+    def daily(self) -> dict | None:
+        """Today's look of the daily board as the last sync saw it ({date, theme, style, set}); None on another day."""
+        daily = self.state.get("daily")
+        return daily if isinstance(daily, dict) and daily.get("date") == time.strftime("%Y-%m-%d", time.gmtime()) else None
+
+    def _usable(self, kind: str, code: str | None) -> bool:
+        """Can this theme / card style / card set be shown right now? (shipped with the game, or its files are on disk)"""
+        if not code:
+            return False
+        if kind == "board_theme" and (config.THEMES_DIR / code).exists():
+            return True
+        if kind == "card_style" and (config.CARD_STYLES_DIR / code).exists():
+            return True
+        if kind == "card_set" and code == cardsets.DEFAULT_SET:
+            return True
+        item = next((i for i in self.items if i["code"] == code and i["kind"] == kind), None)
+        return bool(item and self._present(item))
+
+    def lent_look(self, mode_id: str) -> dict:
+        """The look every player gets in a Season or Daily run: {"theme", "style", "set"} (each None when there is none or it is not ready)
+        plus "families" of the set when it is a downloaded one. {} for other modes."""
+        source = self.season if mode_id == "season" else self.daily if mode_id == "daily" else None
+        if not source:
+            return {}
+        look = {"theme": source.get("theme") if self._usable("board_theme", source.get("theme")) else None,
+                "style": source.get("style") if self._usable("card_style", source.get("style")) else None,
+                "set": source.get("set") if self._usable("card_set", source.get("set")) else None, "families": None}
+        if look["set"] and look["set"] != cardsets.DEFAULT_SET:
+            look["families"] = cardsets.load_families(self.card_set_dir(look["set"]))
+            if look["families"] is None:
+                look["set"] = None
+        return look
+
+    def card_set_dir(self, set_id: str) -> Path | None:
+        return None if set_id in (None, "", cardsets.DEFAULT_SET) else self.dir / "card_sets" / set_id
 
     def lent_theme(self) -> str | None:
         """The season's board theme, lent to everybody while the season runs (only once its files are on disk)."""
@@ -177,7 +215,8 @@ class ContentStore:
                     break
                 self._ensure(rel, meta)
         season = self._season_work(manifest)
-        return {"manifest": manifest, "owned": owned, "currency": inventory.get("currency"), "season": season}
+        daily = self._daily_work(manifest)
+        return {"manifest": manifest, "owned": owned, "currency": inventory.get("currency"), "season": season, "daily": daily}
 
     def _season_work(self, manifest: dict) -> dict | None:
         """The live season and its theme: the theme's files are fetched for everybody, owner or not (it is lent)."""
@@ -199,7 +238,26 @@ class ContentStore:
                 for rel, meta in (track.get("files") or {}).items():
                     self._ensure(rel, meta)
         ends = time.time() + max(0, int(live.get("remainingSeconds", 0)))
-        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "ends": ends, "music": music}
+        style, card_set = (live.get("cardStyle") or {}).get("code"), (live.get("cardSet") or {}).get("code")
+        self._fetch_lent(manifest, style, card_set)
+        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "style": style, "set": card_set, "ends": ends, "music": music}
+
+    def _fetch_lent(self, manifest: dict, *codes: str | None) -> None:
+        """Downloads the files of items that are lent to everybody (the look of a season or of today's daily board), owner or not."""
+        for code in codes:
+            item = next((i for i in manifest.get("items", []) if i.get("code") == code), None)
+            for rel, meta in ((item or {}).get("files") or {}).items():
+                self._ensure(rel, meta)
+
+    def _daily_work(self, manifest: dict) -> dict | None:
+        """Today's random look of the daily board (theme, card background, card set): fetched for everybody, it is lent for the day."""
+        try:
+            look = (self.client.daily() or {}).get("look") or {}
+        except OnlineError:
+            return self.state.get("daily")                  # offline: keep what we knew
+        theme, style, card_set = (look.get("theme") or {}).get("code"), (look.get("cardStyle") or {}).get("code"), (look.get("cardSet") or {}).get("code")
+        self._fetch_lent(manifest, theme, style, card_set)
+        return {"date": look.get("date") or time.strftime("%Y-%m-%d", time.gmtime()), "theme": theme, "style": style, "set": card_set}
 
     def _ensure(self, rel: str, meta: dict) -> bool:
         """Makes sure one file is in the cache with exactly the content the manifest promises. False = skipped."""
@@ -236,7 +294,7 @@ class ContentStore:
             return False
         result = task.result or {}
         self.last_error = ""
-        self.state.update(manifest=result["manifest"], owned=result["owned"], season=result.get("season"))
+        self.state.update(manifest=result["manifest"], owned=result["owned"], season=result.get("season"), daily=result.get("daily"))
         self.store.save(self.state)
         self.register()
         return True

@@ -2,7 +2,12 @@
 
     python tools/import_aseprite.py path/to/folder_with_aseprite_files
 
-CARDS (16x16, 2 frames: frame 0 = classic card, frame 1 = gold card; bottom layer = background, top layer = fruit)
+CARDS (16x16, 9 frames; bottom layer = background, top layer = fruit). Frame order = the card styles:
+  0 classic, 1 gold, 2 ember, 3 frost, 4 wildwood, 5 neon, 6 clockwork, 7 matrix, 8 storm
+  (older files with only 2 frames still work: classic + gold)
+  assets/cards_fg/<name>.png                the fruit alone on a transparent card (a card = background + this)
+  assets/card_styles/<style>/background.png + question_mark.png + exclamation_mark.png   (classic: assets/card_styles/classic/)
+  export/styles/<style>/...                 the same for every style (the 7 new ones are uploaded to the server as items cards_<style>)
   assets/sprites/<name>.png                 classic card (what the game uses)
   assets/card_styles/gold/<name>.png        gold card
   assets/aseprite/cards/<name>.aseprite     your source, renamed to the in-game name
@@ -46,6 +51,7 @@ OLD_TO_NEW = {
     "sunflower": "yellow_sunflower", "wattermallon": "red_watermelon", "yelllowapple": "yellow_apple",
     "yellowbery": "yellow_berry",
 }
+STYLES = ["classic", "gold", "ember", "frost", "wildwood", "neon", "clockwork", "matrix", "storm"]
 CARD_NAMES = [n for fam in config.CARD_FAMILIES.values() for n in fam] + [config.HIDDEN_SPRITE, config.BLOCKED_SPRITE]
 
 
@@ -69,7 +75,7 @@ def import_cards(src: Path) -> list[str]:
             continue
         s = read_aseprite(f)
         if (s.width, s.height) != (16, 16) or s.frame_count < 2 or len(s.layers) < 2:
-            notes.append(f"{f.name}: expected 16x16, 2 frames and 2 layers (got {s.width}x{s.height}, {s.frame_count} frames, "
+            notes.append(f"{f.name}: expected 16x16, 2+ frames and 2 layers (got {s.width}x{s.height}, {s.frame_count} frames, "
                          f"{len(s.layers)} layers)")
             continue
         classic, gold = to_surface(s.flatten(0), 16, 16), to_surface(s.flatten(1), 16, 16)
@@ -78,8 +84,24 @@ def import_cards(src: Path) -> list[str]:
         fruit.blit(to_surface(cel.rgba, cel.width, cel.height), (cel.x, cel.y))
         for surface, rel in ((classic, f"assets/sprites/{name}.png"), (gold, f"assets/card_styles/gold/{name}.png"),
                              (classic, f"export/classic/{name}.png"), (gold, f"export/gold/{name}.png"),
-                             (fruit, f"export/transparent/{name}.png")):
+                             (fruit, f"export/transparent/{name}.png"), (fruit, f"assets/cards_fg/{name}.png")):
             save(surface, ROOT / rel)
+        if s.frame_count >= len(STYLES):                                  # the background of every style = the bottom layer of that frame
+            for i, style in enumerate(STYLES):
+                if name in (config.HIDDEN_SPRITE, config.BLOCKED_SPRITE):          # ? and ! are drawn per style (white on dark backgrounds)
+                    out = to_surface(s.flatten(i), 16, 16)
+                    save(out, ROOT / "export" / "styles" / style / f"{name}.png")
+                    if style in ("classic", "gold"):
+                        save(out, ROOT / "assets" / ("sprites" if style == "classic" else f"card_styles/{style}") / f"{name}.png")
+                    else:
+                        save(out, ROOT / "assets" / "card_styles" / style / f"{name}.png")
+                elif name == "red_apple":                              # any card will do: the bottom layer is the same on all of them
+                    bg = s.cels.get((i, 0))
+                    if bg is not None:
+                        surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+                        surf.blit(to_surface(bg.rgba, bg.width, bg.height), (bg.x, bg.y))
+                        save(surf, ROOT / "export" / "styles" / style / "background.png")
+                        save(surf, ROOT / "assets" / "card_styles" / style / "background.png")
         dst = ROOT / "assets" / "aseprite" / "cards" / f"{name}.aseprite"
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(f, dst)

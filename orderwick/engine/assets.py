@@ -19,6 +19,7 @@ class AssetManager:
         self.theme_palette: dict = {}               # text/UI colour roles of the theme (palette.json), {} = defaults
         self.theme_frame: dict | None = None        # animated frame around the board (frame.json of the theme), None = no frame
         self.extra_sprites_dir: Path | None = None  # cards that came from the server (looked up after the built-in ones)
+        self.set_dir: Path | None = None            # a card set (assets/cards_fg-like folder of transparent pictures); None = the fruits
 
     # ---- looks (see config.BOARD_THEMES / CARD_STYLES) ---------------------------------------------------
     def set_theme(self, directory: Path | None) -> None:
@@ -56,8 +57,35 @@ class AssetManager:
             self.style_dir = directory
             self._sprites.clear()
 
+    def set_card_set(self, directory: Path | None) -> None:
+        if directory != self.set_dir:
+            self.set_dir = directory
+            self._sprites.clear()
+
     def _load(self, path: Path) -> pygame.Surface:
         return pygame.image.load(str(path)).convert_alpha()
+
+    def _foreground(self, name: str) -> pygame.Surface | None:
+        """The picture of a card without its background: from the active card set, else from the fruits."""
+        for folder in (self.set_dir, self.sprites_dir.parent / "cards_fg"):
+            if folder is None:
+                continue
+            try:
+                return self._load(Path(folder) / f"{name}.png")
+            except (FileNotFoundError, pygame.error):
+                continue
+        return None
+
+    def _background(self) -> pygame.Surface | None:
+        """The card background of the selected style (classic when the style has none)."""
+        for folder in (self.style_dir, self.sprites_dir.parent / "card_styles" / "classic"):
+            if folder is None:
+                continue
+            try:
+                return self._load(Path(folder) / "background.png")
+            except (FileNotFoundError, pygame.error):
+                continue
+        return None
 
     def sprite(self, name: str) -> pygame.Surface:
         """A card sprite at its original (unscaled) size, from the selected card style (classic if the style lacks it)."""
@@ -65,16 +93,35 @@ class AssetManager:
         if surf is None:
             candidates = []
             if self.style_dir is not None:
-                candidates.append(self.style_dir / f"{name}.png")
-            candidates.append(self.sprites_dir / f"{name}.png")
-            if self.extra_sprites_dir is not None:
-                candidates.append(self.extra_sprites_dir / f"{name}.png")
+                candidates.append(self.style_dir / f"{name}.png")           # a style may ship finished cards (Gold does)
             for path in candidates:
                 try:
                     surf = self._load(path)
                     break
                 except (FileNotFoundError, pygame.error):
                     continue
+            if surf is None and (self.style_dir is not None or self.set_dir is not None) and name not in (config.HIDDEN_SPRITE, config.BLOCKED_SPRITE):
+                fg = self._foreground(name)                                 # a card = background of the style + the picture
+                bg = self._background() if fg is not None else None
+                if fg is not None and bg is not None:
+                    surf = bg.copy()
+                    surf.blit(fg, (0, 0))
+            if surf is None:
+                tail = [self.sprites_dir / f"{name}.png"]
+                if self.extra_sprites_dir is not None:
+                    tail.append(self.extra_sprites_dir / f"{name}.png")
+                for path in tail:
+                    try:
+                        surf = self._load(path)
+                        break
+                    except (FileNotFoundError, pygame.error):
+                        continue
+            if surf is None:                                  # a set card on the classic style: background + picture
+                fg = self._foreground(name)
+                bg = self._background() if fg is not None else None
+                if fg is not None and bg is not None:
+                    surf = bg.copy()
+                    surf.blit(fg, (0, 0))
             if surf is None:                                  # image missing: show a question mark instead of crashing
                 from .logs import log_error
                 log_error(f"missing sprite {name}")

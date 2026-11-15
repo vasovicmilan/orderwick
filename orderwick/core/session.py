@@ -57,6 +57,7 @@ class GameSession:
         self.solved = 0
         self.round: Round | None = None
         self.remote = None                 # online.remote.RemoteRun for a ranked online run (None = plain offline run)
+        self.families = None               # a lent card set (Daily / Season): {family: [cards]}; None = the player's own cards
 
     # ---- helpers ------------------------------------------------------------
     def _emit(self, event: str, **data) -> None:
@@ -81,10 +82,10 @@ class GameSession:
         if fixed is not None:                              # a reproducible board (the daily board): no time-based steps
             rng, cards = fixed
             generated = BoardGenerator(rng).generate(spec, 0.0, 0.0)
-            palette = pick_palette(rng, spec.types, cards)
+            palette = pick_palette(rng, spec.types, cards, self.families)
         else:
             generated = BoardGenerator(self.rng).generate(spec, budget, pause)
-            palette = pick_palette(self.rng, spec.types, self.unlocked)
+            palette = pick_palette(self.rng, spec.types, self.unlocked, self.families)
         board = Board.from_kinds(generated.kinds, spec.free, spec.k, spec.reveal)
         return Round(spec, level, board, palette, generated.solution)
 

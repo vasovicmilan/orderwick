@@ -44,11 +44,17 @@ class FakeApi:
         self.down = False
         self.downloads = []
         self.live = None            # the season the server says is running (None = none)
+        self.daily_look = None      # today's look of the daily board, {theme, cardStyle, cardSet} as {code, ...} (None = none)
 
     def season(self):
         if self.down:
             raise OnlineError("network", "Can't reach the server.")
         return {"active": self.live}
+
+    def daily(self):
+        if self.down:
+            raise OnlineError("network", "Can't reach the server.")
+        return {"date": "2000-01-01", "look": self.daily_look}
 
     def add(self, entry, files):
         self.items.append(entry)

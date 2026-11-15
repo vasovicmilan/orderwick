@@ -29,7 +29,7 @@ Errors are written to `crash.log` in the data folder (next to `progress.json`, `
   Details: `docs/DAILY.md`.
 - **Trophies** – 50 achievements and a **card collection**: only the first card of every family is unlocked at the start;
   the others are earned by revealing cards and solving boards (thresholds in `config.UNLOCK_THRESHOLDS`).
-- **Settings** – music and effects on/off + volume, board theme, card style. **About** – the game, the author, links.
+- **Settings** – music and effects on/off + volume, board theme, card style. A card is a card style (background) plus a card set (the pictures: fruits and vegetables, later gift boxes or eggs from the server); the Daily board and the Season choose their own look for everybody while they run. **About** – the game, the author, links.
 - **Unlockable looks** – the *Emerald* board theme (restyles the board, HUD, dialogs, menus, icons and text colours) for completing every
   trophy, and the *Gold* card style for reaching 100,000 points in one run.
 

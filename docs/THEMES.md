@@ -70,3 +70,9 @@ A theme with a frame also brings its board lanes to life, automatically and with
 (or with an unknown style) has no frame. Themes that come from the server get `frame.json` through the same content
 sync as `board.png` and the HUD files. When a frame is active only 8 of its 28 px are reserved when the board is fitted
 into the window, so it does not shrink the board; on a tight window the outer edge of the frame is clipped.
+
+## Card backgrounds and card sets
+
+`tools/import_aseprite.py` reads the card sources (16x16, 9 frames: classic, gold, ember, frost, wildwood, neon, clockwork, matrix, storm; bottom layer = background, top layer = picture) and writes
+`assets/cards_fg/<card>.png` (the picture alone), `assets/card_styles/<style>/background.png` and the `?`/`!` of every style. A card is drawn as background + picture
+(`engine/assets.py`), so a new card set from the server (`card_sets/<code>/<card>.png` + `families.json`, see `core/cardsets.py`) works with every background.

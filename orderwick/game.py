@@ -52,11 +52,16 @@ class OrderwickGame(App):
         theme = cosmetics.resolve(cosmetics.BOARD, data.get("board_theme", ""), trophies)
         style = cosmetics.resolve(cosmetics.CARDS, data.get("card_style", ""), trophies)
         data["board_theme"], data["card_style"] = theme, style                   # the player's own choice stays as it is
-        if self.season_look and self.content.lent_theme():                       # in a Season run the season's board is always used
-            theme = self.content.lent_theme()
+        card_set = None
+        if self.run_look:                                                        # a Season or Daily run always uses the look of the event, whatever the player chose
+            look = self.content.lent_look(self.run_look)
+            theme = look.get("theme") or theme
+            style = look.get("style") or style
+            card_set = look.get("set")
         self.assets.set_theme(None if theme == cosmetics.default_id(cosmetics.BOARD) else self.content.theme_dir(theme))
         self.assets.set_card_style(None if style == cosmetics.default_id(cosmetics.CARDS)
                                    else self.content.card_style_dir(style))
+        self.assets.set_card_set(self.content.card_set_dir(card_set))
         from .view import colors
         colors.apply(self.assets.theme_palette)                  # text / UI colours follow the theme
         from .view.board_view import BoardView
@@ -64,17 +69,24 @@ class OrderwickGame(App):
         self._wood_kit = None                                    # menus/dialogs are rebuilt in the new style
 
     season_look = False
+    run_look = ""                    # "season" / "daily" while such a run is open and the event has a look to lend, else ""
     _season_sent = None
 
     def _season_run_open(self) -> bool:
-        return any(getattr(getattr(getattr(s, "session", None), "mode", None), "id", "") == "season" for s in self.scenes._stack)
+        return self._run_open("season")
+
+    def _run_open(self, mode_id: str) -> bool:
+        return any(getattr(getattr(getattr(s, "session", None), "mode", None), "id", "") == mode_id for s in self.scenes._stack)
 
     def sync_season_look(self) -> None:
-        """A Season run always uses the season's board and only the season's songs, whatever the player chose; afterwards everything goes back."""
+        """A Season run always uses the season's board, cards and songs, a Daily run the day's random look, whatever the player chose; afterwards everything goes back."""
         want = self._season_run_open() and bool(self.content.lent_theme())
+        wanted_look = "season" if self._season_run_open() and any(self.content.lent_look("season").get(k) for k in ("theme", "style", "set")) else \
+            "daily" if self._run_open("daily") and any(self.content.lent_look("daily").get(k) for k in ("theme", "style", "set")) else ""
         tracks = self.content.season_music_files() if want else []
-        if want != self.season_look:
+        if wanted_look != self.run_look or want != self.season_look:
             self.season_look = want
+            self.run_look = wanted_look
             self.apply_appearance()
         sent = tuple(str(t) for t in tracks) if want and tracks else None
         if sent != self._season_sent:                                            # only when it changes (every call is a message to the audio process)
@@ -85,6 +97,7 @@ class OrderwickGame(App):
         """A new run: only unlocked cards appear."""
         from .core.session import GameSession
         session = GameSession(mode, events=self.events, unlocked=self.progress.collection.unlocked)
+        session.families = self.content.lent_look(mode.id).get("families") if mode.id in ("season", "daily") else None
         session.remote = self.online.new_remote(mode)          # None unless the player turned online features on
         return session
 
