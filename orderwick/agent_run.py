@@ -113,7 +113,10 @@ def run(args) -> int:
         shot("menu")
         if args.key:
             say("opening the Online screen and typing the activation key")
-            for _ in range(6):                                   # Campaign, Hard, Daily, Custom, Trophies, Leaderboard -> Online
+            for _ in range(14):                                  # down the menu to the Online button (found by its text: the menu has grown before)
+                grp = getattr(scene(), "group", None)
+                if grp is not None and "online" in str(getattr(grp.widgets[grp.focus], "text", "")).lower():
+                    break
                 press(pygame.K_DOWN); yield 0.35
             press(pygame.K_RETURN); yield 1.0                    # open the Online screen
             if not app.online.activated:
@@ -155,8 +158,11 @@ def run(args) -> int:
                         break
                     press(pygame.K_UP); yield 0.4
             shot("online")
-            press(pygame.K_ESCAPE); yield 1.2
-            for _ in range(6):
+            yield from to_menu()                                 # Escape until the main menu is there again
+            for _ in range(14):                                  # back to the top of the menu
+                grp = getattr(scene(), "group", None)
+                if grp is None or grp.focus == 0:
+                    break
                 press(pygame.K_UP); yield 0.25
         else:
             yield 0.5

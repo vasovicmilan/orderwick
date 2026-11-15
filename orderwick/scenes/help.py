@@ -16,7 +16,7 @@ SECTIONS = [
       "The top card, with the run of equal cards below it, moves to an empty column or onto a column "
       "whose top is the same type. A free slot holds one card. Slots marked ! are locked."),
     ("Scoring",
-      "Level x 100, plus a bonus for few moves and a bonus for speed. Undo counts as a move."),
+      "Level x 100, plus 4 points for every move under par, plus a small bonus for speed. Few moves matter most. Undo counts as a move."),
     ("Progress",
       "The campaign goes from easy to hard: more columns first, then fewer free slots, then taller "
       "columns, up to the 10 x 13 finale with one free slot. Hard mode starts at the finale. "

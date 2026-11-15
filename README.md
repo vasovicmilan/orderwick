@@ -68,7 +68,7 @@ Tools: `tools/import_aseprite.py` (your .aseprite files → game PNGs), `tools/m
         generator.py           builds boards BACKWARDS from the solved state (rotations in thin layers), then breaks
                                regularities with swaps that PathSolver verifies, so every board is provably solvable
         pathsolver.py          solver with the exact game rules (proof of solvability, rescue check)
-        levels.py scoring.py   LevelCatalog + Modes (Campaign/Hard/Custom); score = level + move bonus + time bonus
+        levels.py scoring.py   LevelCatalog + Modes (Campaign/Hard/Custom); score = level x 100 + move bonus (4 per move under par) + small time bonus
         collection.py          card unlocking;  achievements.py: trophies;  palette.py: picks the types for a board
         session.py             GameSession / Round: moves, time, 1 undo, rescue, score, events
       engine/                  small engine that knows nothing about this game
