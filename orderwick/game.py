@@ -54,9 +54,9 @@ class OrderwickGame(App):
         data["board_theme"], data["card_style"] = theme, style                   # the player's own choice stays as it is
         card_set = None
         if self.run_look:                                                        # a Season or Daily run always uses the look of the event, whatever the player chose
-            look = self.content.lent_look(self.run_look)
-            theme = look.get("theme") or theme
-            style = look.get("style") or style
+            look = self.content.lent_look(self.run_look)                         # the event's look is complete: what it does not set is the default, never the player's own
+            theme = look.get("theme") or cosmetics.default_id(cosmetics.BOARD)
+            style = look.get("style") or cosmetics.default_id(cosmetics.CARDS)
             card_set = look.get("set")
         self.assets.set_theme(None if theme == cosmetics.default_id(cosmetics.BOARD) else self.content.theme_dir(theme))
         self.assets.set_card_style(None if style == cosmetics.default_id(cosmetics.CARDS)

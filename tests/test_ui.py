@@ -328,6 +328,31 @@ class UiFlow(unittest.TestCase):
             del app.content.lent_look, app.content.card_set_dir
             app.apply_appearance()
 
+    def test_06g_a_season_run_never_mixes_in_the_players_own_look(self):
+        scenes, app = self.app.scenes, self.app
+        from orderwick.core import cosmetics
+        own = "gold"
+        real_resolve = cosmetics.resolve
+        cosmetics.resolve = lambda kind, code, trophies: code                    # the player owns whatever they chose
+        app.settings.data["board_theme"], app.settings.data["card_style"] = "emerald", own
+        look = {"theme": "emerald", "style": None, "set": None, "families": None}              # a season that sets only its board
+        app.content.lent_look = lambda mode_id: look if mode_id == "season" else {}
+        app.content.lent_theme = lambda: "emerald"
+        app.content.season_music_files = lambda: []
+        try:
+            scenes.reset(MenuScene(app))
+            scenes.push(GameScene(app, GameSession(SeasonMode(), events=app.events)))
+            app.sync_season_look()
+            self.assertEqual(app.run_look, "season")
+            self.assertEqual(app.assets.theme_dir, config.THEMES_DIR / "emerald")
+            self.assertIsNone(app.assets.style_dir, "the card background is the default, not the player's own")
+            self.assertEqual(app.settings.data["card_style"], own, "the player's own choice stays as it was")
+        finally:
+            cosmetics.resolve = real_resolve
+            del app.content.lent_look, app.content.lent_theme, app.content.season_music_files
+            app.sync_season_look()
+            app.apply_appearance()
+
     def test_06e_the_season_run_waits_for_the_season_board_to_arrive(self):
         from orderwick.scenes.season import SeasonScene
         app = self.app
