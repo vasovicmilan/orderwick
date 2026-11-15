@@ -33,7 +33,7 @@ No analytics, no advertising identifiers, no cookies in the game. Public on the 
 2. `POST /runs {mode, level}` → run id + first board (`kinds`, `spec`). Daily: `GET /daily`.
 3. The client plays; every accepted move/undo/rescue is appended to the round log.
 4. `POST /runs/:id/rounds {events, elapsed}` → server replays the log; accepted → gain, score, next level (the server decides the level).
-5. `POST /runs/:id/restart {events}` (new board, costs 50 points; the daily board restarts for free) and `POST /runs/:id/finish`.
+5. `POST /runs/:id/restart {events}` (new board, costs 50 points; the daily board cannot be restarted: one attempt per day, and `daily_used` is returned once it is spent) and `POST /runs/:id/finish`.
 If the server cannot be reached or rejects a result, the run silently continues **offline and unranked** and the player is told once.
 
 ## AI agents

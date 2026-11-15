@@ -6,8 +6,9 @@ One special board per calendar day, started from the Daily screen ("Play today's
   (first card of each family) and without the time-limited shuffling step, so it does not depend on the computer's speed or on what you
   have unlocked. Difficulty of the day: a Campaign level between 5 and 15 (also from the date).
 * **Once a day:** after you solve it, the button shows "Board solved <score>" and stays locked until local midnight, also after restarting the
-  game (saved in `daily.json`: date, score, moves, time). Until it is solved you can retry as often as you like: **Restart** replays the
-  same board from the start (no penalty). There is no rescue on this board; undo works as usual.
+  game (saved in `daily.json`: date, score, moves, time). You get **one attempt**: there is no Restart on this board. Signed in, the server
+  keeps the attempt open, so a dropped connection or a closed window can pick it up again, but leaving it for another run uses it up. There is
+  no rescue on this board; undo works as usual.
 * It is not a Campaign run: no leaderboard entry and no change to "Best level / Games". It still counts for the daily tasks and trophies.
 
 ## The three tasks

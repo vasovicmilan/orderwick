@@ -54,6 +54,8 @@ class RemoteRun:
     def _fail(self, err: OnlineError, what: str) -> None:
         if err.code == "daily_done":
             self._break("You already solved today's board online. This attempt is not ranked.")
+        elif err.code == "daily_used":
+            self._break("You already played today's board online. The daily board gives one attempt. This run is not ranked.")
         elif err.code == "network":
             self._break(f"Offline: {what} This run is not ranked.")
         else:

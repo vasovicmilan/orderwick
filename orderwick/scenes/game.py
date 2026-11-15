@@ -151,10 +151,9 @@ class GameScene(Scene):
     def _restart(self) -> None:
         if self.loading or self.rescue_task:
             return
-        if self.session.mode.id == "daily":                 # the same board again, from the start (no penalty)
+        if self.session.mode.id == "daily":                 # one attempt per day: no restart
             if not self.rnd.won:
-                self._begin_load()
-                self._say("Daily board restarted.")
+                self._say("One attempt per day: the daily board cannot be restarted.")
             return
         if self.restart_confirm > 0:
             self.restart_confirm = 0
@@ -392,7 +391,7 @@ class GameScene(Scene):
         rnd = self.rnd
         if self.loading or rnd is None or rnd.won:
             return [False] * 4
-        return [rnd.undo is not None, self.session.mode.id != "season", True, True]
+        return [rnd.undo is not None, self.session.mode.id != "season", self.session.mode.id != "daily", True]
 
     def _hud_data(self) -> HudData:
         s = self.session
@@ -403,7 +402,7 @@ class GameScene(Scene):
         enabled = self._hud_enabled()
         messages: list[tuple[str, tuple]] = []
         if rnd is not None and not self.loading and not rnd.won and not rnd.board.has_moves():
-            messages.append(("NO MOVES LEFT! U = undo, R = restart the board." if s.mode.id == "daily"
+            messages.append(("NO MOVES LEFT! U = undo. The daily board gives one attempt." if s.mode.id == "daily"
                              else ("NO MOVES LEFT! U = undo, R = new board (-%d points)." % config.RESTART_PENALTY if s.mode.id == "season"
                                    else "NO MOVES LEFT! X = rescue, U = undo, R = new board."), BAD))
         if self.msg:
@@ -428,7 +427,7 @@ class GameScene(Scene):
             score=str(s.score),
             messages=messages,
             buttons=[HudButton("UNDO MOVE", "undo", enabled[0]), HudButton("RESCUE", "rescue", enabled[1]),
-                     HudButton("RESTART" if s.mode.id == "daily" else "NEW BOARD", "restart", enabled[2]), HudButton("PAUSE", "pause", enabled[3])],
+                     HudButton("NEW BOARD", "restart", enabled[2]), HudButton("PAUSE", "pause", enabled[3])],
         )
 
     def draw(self, surface: pygame.Surface) -> None:
