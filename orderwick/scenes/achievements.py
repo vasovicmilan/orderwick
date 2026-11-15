@@ -10,7 +10,7 @@ from ..engine.audio import audio
 from ..engine.native_scene import NativeScene
 from ..engine.tasks import BackgroundTask
 from ..view.achievement_art import achievement_icon
-from ..view.wood_kit import CREAM, DISABLED, GOLD, GOOD, TAN
+from ..view.wood_kit import CREAM, GOLD, GOOD, TAN
 from .common import full_panel
 
 TABS = ["Achievements", "Cards"]
@@ -137,18 +137,31 @@ class AchievementsScene(NativeScene):
         kit.text(canvas, summary, (panel.x + 10, panel.bottom - 8), TAN, "bottomleft", shadow=False)
         kit.text(canvas, self.sync_note or "Esc = back", (panel.right - 10, panel.bottom - 8), TAN, "bottomright", shadow=False)
 
+    def _fit(self, kit, text: str, width: int, body: bool = False) -> str:
+        """Cut a line so it fits `width` pixels (adds '..'): a long description must never run under the numbers."""
+        font = kit.body if body else kit.f8
+        if font.size(text)[0] <= width:
+            return text
+        while text and font.size(text + "..")[0] > width:
+            text = text[:-1]
+        return text.rstrip() + ".."
+
     def _paint_achievements(self, canvas, kit, box) -> None:
         first = self.scroll[0]
         y = box.y + 5
         for a in self._entries()[first:first + self._visible() + 1]:
             done = a["done"]
             canvas.blit(achievement_icon(self.app.assets, a["id"], locked=not done), (box.x + 6, y + 2))
-            kit.text(canvas, a["name"], (box.x + 28, y + 1), GOLD if done else DISABLED, shadow=done)
-            kit.text(canvas, a["desc"], (box.x + 28, y + 11), CREAM if done else TAN, shadow=False, body=True)
             label = "DONE" if done else f"{a['cur']}/{a['target']}"
-            kit.text(canvas, label, (box.right - 10, y + 1), GOOD if done else TAN, "topright", shadow=False)
-            if a["reward"]:
-                kit.text(canvas, f"+{a['reward']}", (box.right - 10, y + 11), GOLD if not done else TAN, "topright", shadow=False)
+            reward = f"+{a['reward']}" if a["reward"] else ""
+            right = box.right - 10
+            room = right - max(kit.width(label), kit.width(reward)) - 8 - (box.x + 28)
+            # locked rows stay readable on every theme: the name is cream (not the dark 'disabled' colour), only gold marks a done one
+            kit.text(canvas, self._fit(kit, a["name"], room), (box.x + 28, y + 1), GOLD if done else CREAM, shadow=True)
+            kit.text(canvas, self._fit(kit, a["desc"], room, body=True), (box.x + 28, y + 11), CREAM if done else TAN, shadow=False, body=True)
+            kit.text(canvas, label, (right, y + 1), GOOD if done else CREAM, "topright", shadow=False)
+            if reward:
+                kit.text(canvas, reward, (right, y + 11), GOLD if not done else TAN, "topright", shadow=False)
             y += ROW_H
 
     def _paint_cards(self, canvas, kit, box) -> None:

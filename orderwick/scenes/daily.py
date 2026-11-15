@@ -10,7 +10,7 @@ from ..core.daily_board import DailyBoardMode
 from ..core.levels import HardMode
 from ..engine.native_scene import NativeScene
 from ..engine.ui import Button, FocusGroup
-from ..view.wood_kit import CREAM, DISABLED, GOLD, GOOD, TAN
+from ..view.wood_kit import CREAM, GOLD, GOOD, TAN
 from .common import full_panel
 
 ROW_H = 30
@@ -79,7 +79,7 @@ class DailyScene(NativeScene):
         for ch in state.today:
             done = ch.id in state.done
             tag = TIER_NAMES[ch.tier]
-            kit.text(canvas, tag, (box.x + 7, y + 2), TIER_COLOURS[ch.tier] if not done else DISABLED, shadow=False)
+            kit.text(canvas, tag, (box.x + 7, y + 2), TIER_COLOURS[ch.tier] if not done else TAN, shadow=False)
             label = "DONE" if done else f"{state.value(ch)}/{ch.target}"
             kit.text(canvas, label, (box.right - 8, y + 2), GOOD if done else TAN, "topright", shadow=False)
             lines = kit.wrap(ch.text, box.w - 16, body=True)[:2]

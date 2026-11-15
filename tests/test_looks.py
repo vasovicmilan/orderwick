@@ -177,5 +177,18 @@ class Lent(ContentCase):
         self.assertEqual(again.lent_look("season")["set"], "gifts")
 
 
+class Trophies(unittest.TestCase):
+    def test_long_texts_are_cut_to_the_room_before_the_numbers(self):
+        from orderwick.scenes.achievements import AchievementsScene
+        from orderwick.view.wood_kit import WoodKit
+        pygame.init(); pygame.display.set_mode((1, 1))
+        kit = WoodKit(AssetManager(config.SPRITES_DIR))
+        scene = AchievementsScene.__new__(AchievementsScene)
+        long = "Unlock every other achievement. Prizes: the golden frame and a lot of coins"
+        cut = scene._fit(kit, long, 180, body=True)
+        self.assertTrue(cut.endswith("..") and kit.body.size(cut)[0] <= 180)
+        self.assertEqual(scene._fit(kit, "Solve 10 boards.", 180, body=True), "Solve 10 boards.")
+
+
 if __name__ == "__main__":
     unittest.main()
