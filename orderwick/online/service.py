@@ -112,12 +112,23 @@ class OnlineService:
         if not self.activated:
             raise OnlineError("not_activated", "Enter your activation key first (it is on your account page).")
         if not self.state.get("key"):
-            reg = self.client.register()
+            reg = self._take_over() or self.client.register()
             self.state.update(player_id=reg["playerId"], key=reg["key"], nickname=reg["nickname"])
         self.state["consent"] = config.ONLINE_CONSENT_VERSION
         self._save()
         self._send_activation(strict=False)          # now that a player key exists the server can link player and account
         return self.nickname
+
+    def _take_over(self) -> dict | None:
+        """One account, one player: a new computer, a reinstall or a forgotten key continues with the account's player
+        (its name, avatar, coins and items) instead of starting a new one. None = the account has no player yet."""
+        code = self.state.get("activation")
+        if self.agent_key or not code:
+            return None
+        try:
+            return self.client.claim(code, self._install_id())
+        except OnlineError:
+            return None
 
     def _recover(self) -> bool:
         """The server does not know our key (its database was reset, or the address now points to another server).
@@ -126,6 +137,11 @@ class OnlineService:
             return False
         old = self.state.get("nickname", "")
         try:
+            reg = self._take_over()
+            if reg is not None:
+                self.state.update(player_id=reg["playerId"], key=reg["key"], nickname=reg["nickname"])
+                self._save()
+                return True
             try:
                 reg = self.client.register(old or None)
             except OnlineError as e:

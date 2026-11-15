@@ -14,6 +14,7 @@ import pygame
 
 from .. import config
 from ..engine.tasks import BackgroundTask
+from .client import OnlineError
 
 FRAME = 32
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -73,13 +74,27 @@ class AvatarVoice:
         return found
 
     def refresh_async(self, client, nickname: str, force: bool = False) -> bool:
-        if client is None or not nickname or (self.task is not None and not self.task.done):
+        """nickname "" = ask the server who the key belongs to first (an AI agent never saves its nickname locally)."""
+        if client is None or (self.task is not None and not self.task.done):
             return False
         if not force and time.time() - self.last_try < REFRESH_EVERY:
             return False
         self.last_try = time.time()
-        self.task = BackgroundTask(client.avatar_pictures, nickname)
+        self.task = BackgroundTask(self._fetch, client, nickname)
         return True
+
+    @staticmethod
+    def _fetch(client, nickname: str):
+        """Asks the server who the key belongs to (the name may have been changed on the website, and the avatar code
+        keeps a cached picture from hiding a new one), then downloads the pictures."""
+        try:
+            me = client.me()
+            nickname, version = me.get("nickname") or nickname, me.get("avatar") or ""
+        except OnlineError:
+            version = ""
+            if not nickname:
+                raise
+        return client.avatar_pictures(nickname, version)
 
     def poll(self) -> bool:
         """Main thread, every frame. True when a new picture arrived."""

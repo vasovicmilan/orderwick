@@ -63,6 +63,11 @@ class ApiClient:
         """Checks the activation key from the website account. The player key (if any) is sent too, so the server links them."""
         return self.request("POST", "/api/v1/activation", {"code": code, "installId": install_id, "platform": self.platform}, auth="optional")
 
+    def claim(self, code: str, install_id: str) -> dict | None:
+        """Takes over the player of the account this key belongs to, with a key made for this install. None = the account has no player yet."""
+        out = self.request("POST", "/api/v1/players/claim", {"code": code, "installId": install_id, "platform": self.platform}, auth=False)
+        return (out or {}).get("player")
+
     def me(self) -> dict:
         return self.request("GET", "/api/v1/players/me")
 
@@ -105,10 +110,12 @@ class ApiClient:
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             raise OnlineError("network", "Can't reach the server.") from None
 
-    def avatar_pictures(self, nickname: str) -> tuple[bytes | None, bytes | None]:
-        """(talking strip, still picture) of the avatar this player wears; a missing strip is None."""
+    def avatar_pictures(self, nickname: str, version: str = "") -> tuple[bytes | None, bytes | None]:
+        """(talking strip, still picture) of the avatar this player wears; a missing strip is None.
+        `version` (the avatar's code) is added to the address so a change made on the website is not hidden by a cached picture."""
         who = urllib.parse.quote(nickname, safe="")
-        return self.public_png(f"/avatar/{who}/talk.png"), self.public_png(f"/avatar/{who}.png")
+        tag = f"?v={urllib.parse.quote(version, safe='')}" if version else ""
+        return self.public_png(f"/avatar/{who}/talk.png{tag}"), self.public_png(f"/avatar/{who}.png{tag}")
 
     def rename(self, nickname: str) -> dict:
         return self.request("PATCH", "/api/v1/players/me", {"nickname": nickname})

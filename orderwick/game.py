@@ -112,6 +112,8 @@ class OrderwickGame(App):
         elif self.online.enabled and not self.online.is_agent:
             self.content.sync_async()                            # at start and every 15 minutes
             self.avatar.refresh_async(self.online.client, self.online.nickname)
+        elif self.online.enabled:                                # an AI agent skips the content sync but still wears its avatar
+            self.avatar.refresh_async(self.online.client, self.online.nickname)
         self.avatar.poll()
         self.sync_season_look()
         self.toasts.update(dt)

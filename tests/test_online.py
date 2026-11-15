@@ -88,6 +88,17 @@ class FakeApi:
                     {"code": "server_only", "title": "Added Later", "description": "New on the server.", "threshold": 3, "progress": 3,
                      "reward": 7, "unlocked": True, "unlockedAt": None}]}
 
+    def register(self, nickname=None):
+        self.sent.append(("register",))
+        return {"playerId": "p-0", "key": "p-0.fresh", "nickname": nickname or "Player-ABCD"}
+
+    claimed = None                  # the player an account already has ({"playerId", "key", "nickname"}); None = no player yet
+
+    def claim(self, code, install_id):
+        self._maybe_fail()
+        self.sent.append(("claim", code, install_id))
+        return self.claimed
+
     def activate(self, code, install_id):
         self._maybe_fail()
         self.sent.append(("activate", code, install_id))
@@ -469,3 +480,51 @@ class ServerProgress(unittest.TestCase):
         self.assertEqual(scene._entries()[1]["reward"], 10)
         svc.state["consent"] = 0                                         # offline: the built-in list comes back
         self.assertGreater(len(scene._entries()), 40)
+
+
+class AvatarFreshness(unittest.TestCase):
+    def test_the_avatar_address_carries_its_code_so_a_cached_picture_cannot_hide_a_new_one(self):
+        from orderwick.online.client import ApiClient
+        seen = []
+        client = ApiClient("http://x.test", lambda: "", "1", "linux")
+        client.public_png = lambda path, limit=0: seen.append(path) or b"x"
+        client.avatar_pictures("Mila", "av_pink")
+        self.assertEqual(seen, ["/avatar/Mila/talk.png?v=av_pink", "/avatar/Mila.png?v=av_pink"])
+        seen.clear()
+        client.avatar_pictures("Mila")
+        self.assertEqual(seen, ["/avatar/Mila/talk.png", "/avatar/Mila.png"])
+
+    def test_the_daily_day_is_the_servers_utc_day(self):
+        import time
+        from orderwick.data.daily import today_string
+        self.assertEqual(today_string(), time.strftime("%Y-%m-%d", time.gmtime()))
+
+
+class OneAccountOnePlayer(unittest.TestCase):
+    def make(self, claimed):
+        api = FakeApi()
+        api.claimed = claimed
+        return OnlineService(store=JsonStore("one.json", Path(tempfile.mkdtemp())), url="http://x", client=api), api
+
+    def test_a_new_computer_takes_over_the_players_of_the_account(self):
+        svc, api = self.make({"playerId": "p-1", "key": "p-1.secret", "nickname": "Milan"})
+        svc.activate("OW-AAAA-BBBB-CCCC")
+        self.assertEqual(svc.enable(), "Milan")
+        self.assertEqual(svc.state["player_id"], "p-1")
+        self.assertEqual(svc.state["key"], "p-1.secret")
+        self.assertNotIn(("register",), api.sent, "no second player is made")
+
+    def test_an_account_without_a_player_still_registers_one(self):
+        svc, api = self.make(None)
+        svc.activate("OW-AAAA-BBBB-CCCC")
+        svc.enable()
+        self.assertTrue(svc.state["key"])
+        self.assertIn("claim", [x[0] for x in api.sent])
+
+    def test_losing_the_key_continues_with_the_players_of_the_account(self):
+        svc, api = self.make(None)
+        svc.activate("OW-AAAA-BBBB-CCCC")
+        svc.enable()
+        api.claimed = {"playerId": "p-9", "key": "p-9.fresh", "nickname": "Milan"}
+        self.assertTrue(svc._recover())
+        self.assertEqual(svc.state["key"], "p-9.fresh")

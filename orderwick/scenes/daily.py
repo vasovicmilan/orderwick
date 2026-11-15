@@ -18,7 +18,7 @@ TIER_COLOURS = {1: GOOD, 2: GOLD, 3: (250, 120, 110)}
 
 
 def seconds_to_midnight(now: time.struct_time | None = None) -> int:
-    t = now or time.localtime()
+    t = now or time.gmtime()                          # the day changes at UTC midnight, like on the server
     return 86400 - (t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec)
 
 

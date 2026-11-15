@@ -149,7 +149,7 @@ class OnlineScene(NativeScene):
                             Button("Export my data", self._export, enabled=not busy),
                             Button("Delete account", self._delete, enabled=not busy),
                             Button("Turn off online", self._off, enabled=not busy)]
-            buttons += [Button("Privacy policy", self._privacy), Button("Back", self.app.scenes.pop)]
+            buttons += [Button("Avatar and name (website)", self._account), Button("Privacy policy", self._privacy), Button("Back", self.app.scenes.pop)]
         elif state == "locked":
             buttons = [Button("Enter activation key", self._activate, enabled=not busy), Button("Open my account page", self._account),
                        Button("How to get a key", self._download), Button("Not now", self.app.scenes.pop)]
@@ -202,6 +202,8 @@ class OnlineScene(NativeScene):
                     rank = f"  rank #{s['rank']}" if s.get("rank") else ""
                     lines.append(f"{label}: best {s.get('best', 0)}{rank}")
             lines.append("Boards you solve in Campaign, Hard mode and the Daily board are checked by the server and ranked.")
+            if not self.online.is_agent:
+                lines.append("Avatar: pick it on your account page on the website (or use the button below). The game shows it within a few minutes.")
         wrapped = [kit.wrap(text, width, body=True) for text in lines]
         text_h = sum(9 * len(w) + 2 for w in wrapped)
         # buttons are anchored at the bottom; the status line sits right above them; the text gets what is left and scrolls

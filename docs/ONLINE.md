@@ -56,3 +56,11 @@ for example `https://orderwick.com`. The game appends `/api/v1/...` itself.
 The browser game plays the same rules but never receives the hidden cards: `POST /runs {client:"web"}` returns the visible state only
 (hidden cards are `null`), every move is sent to `POST /runs/:id/move {event}` and the server answers with what is face up now, and a win is verified from the
 moves the server stored. Desktop clients are unchanged.
+
+## One account, one player
+
+An account has one player. When a computer is activated with the account's key and the account already has a player, the game
+takes that player over (`POST /api/v1/players/claim`): the same name, avatar, coins and items, with a key made for this
+install. The keys of the other computers keep working. A new player is made only for an account that has none yet. The
+player is erased with "Delete account" in the game, which also removes every computer's key.
+The name can be changed in the game and on the website (account page); the avatar is picked on the website.

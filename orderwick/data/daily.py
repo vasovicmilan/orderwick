@@ -12,7 +12,8 @@ from .storage import JsonStore
 
 
 def today_string() -> str:
-    return time.strftime("%Y-%m-%d")
+    """The day of the daily board and tasks. UTC, like the server's day, so the game and the website switch at the same moment."""
+    return time.strftime("%Y-%m-%d", time.gmtime())
 
 
 class DailyChallenges:

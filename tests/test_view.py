@@ -383,7 +383,8 @@ class AvatarSpeaker(unittest.TestCase):
             return buf.getvalue()
         class Client:
             def __init__(self, pair): self.pair = pair
-            def avatar_pictures(self, nickname): return self.pair
+            def me(self): return {"nickname": "Mila", "avatar": "classic_red"}
+            def avatar_pictures(self, nickname, version=""): return self.pair
         with tempfile.TemporaryDirectory() as d:
             voice = AvatarVoice(Path(d))
             self.assertTrue(voice.refresh_async(Client((png(128, 32, (200, 0, 0, 255)), png(32, 32, (0, 0, 0, 255)))), "Pat"))
@@ -402,7 +403,9 @@ class AvatarSpeaker(unittest.TestCase):
             voice.task.join()
             self.assertFalse(voice.poll())
             self.assertFalse(voice.refresh_async(None, "Pat", force=True))
-            self.assertFalse(voice.refresh_async(Client((None, None)), "", force=True))
+            self.assertTrue(voice.refresh_async(Client((None, None)), "", force=True))      # no saved name: the server says who the key is
+            voice.task.join()
+            self.assertFalse(voice.poll())
 
     def test_message_box_with_speaker_at_every_height(self):
         from orderwick.online.avatar import AvatarVoice
