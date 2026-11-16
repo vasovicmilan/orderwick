@@ -110,12 +110,30 @@ class ContentStore:
             return {}
         look = {"theme": source.get("theme") if self._usable("board_theme", source.get("theme")) else None,
                 "style": source.get("style") if self._usable("card_style", source.get("style")) else None,
-                "set": source.get("set") if self._usable("card_set", source.get("set")) else None, "families": None}
+                "set": source.get("set") if self._usable("card_set", source.get("set")) else None, "families": None,
+                "avatar": source.get("avatar") if self.lent_avatar(mode_id) is not None else None}
         if look["set"] and look["set"] != cardsets.DEFAULT_SET:
             look["families"] = cardsets.load_families(self.card_set_dir(look["set"]))
             if look["families"] is None:
                 look["set"] = None
         return look
+
+    def lent_avatar(self, mode_id: str):
+        """The avatar a Season lends (the speaker during its runs): a Portrait, or None when there is none or its files are not here yet."""
+        source = self.season if mode_id == "season" else None
+        code = (source or {}).get("avatar")
+        if not code or not safe_path(f"avatars/{code}.png"):
+            return None
+        from .avatar import load_portrait
+        for name in (f"{code}_talk.png", f"{code}.png"):          # the talking strip first, a still picture works too
+            path = self.dir / "avatars" / name
+            try:
+                portrait = load_portrait(path.read_bytes()) if path.is_file() else None
+            except OSError:
+                portrait = None
+            if portrait is not None:
+                return portrait
+        return None
 
     def card_set_dir(self, set_id: str) -> Path | None:
         return None if set_id in (None, "", cardsets.DEFAULT_SET) else self.dir / "card_sets" / set_id
@@ -238,9 +256,9 @@ class ContentStore:
                 for rel, meta in (track.get("files") or {}).items():
                     self._ensure(rel, meta)
         ends = time.time() + max(0, int(live.get("remainingSeconds", 0)))
-        style, card_set = (live.get("cardStyle") or {}).get("code"), (live.get("cardSet") or {}).get("code")
-        self._fetch_lent(manifest, style, card_set)
-        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "style": style, "set": card_set, "ends": ends, "music": music}
+        style, card_set, avatar = (live.get("cardStyle") or {}).get("code"), (live.get("cardSet") or {}).get("code"), (live.get("avatar") or {}).get("code")
+        self._fetch_lent(manifest, style, card_set, avatar)
+        return {"code": live.get("code", ""), "name": live.get("name", ""), "theme": theme, "style": style, "set": card_set, "avatar": avatar, "ends": ends, "music": music}
 
     def _fetch_lent(self, manifest: dict, *codes: str | None) -> None:
         """Downloads the files of items that are lent to everybody (the look of a season or of today's daily board), owner or not."""

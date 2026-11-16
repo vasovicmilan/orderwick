@@ -58,6 +58,7 @@ class OrderwickGame(App):
             theme = look.get("theme") or cosmetics.default_id(cosmetics.BOARD)
             style = look.get("style") or cosmetics.default_id(cosmetics.CARDS)
             card_set = look.get("set")
+        self.avatar.override = self.content.lent_avatar("season") if self.run_look == "season" else None
         self.assets.set_theme(None if theme == cosmetics.default_id(cosmetics.BOARD) else self.content.theme_dir(theme))
         self.assets.set_card_style(None if style == cosmetics.default_id(cosmetics.CARDS)
                                    else self.content.card_style_dir(style))
@@ -81,7 +82,7 @@ class OrderwickGame(App):
     def sync_season_look(self) -> None:
         """A Season run always uses the season's board, cards and songs, a Daily run the day's random look, whatever the player chose; afterwards everything goes back."""
         want = self._season_run_open() and bool(self.content.lent_theme())
-        wanted_look = "season" if self._season_run_open() and any(self.content.lent_look("season").get(k) for k in ("theme", "style", "set")) else \
+        wanted_look = "season" if self._season_run_open() and any(self.content.lent_look("season").get(k) for k in ("theme", "style", "set", "avatar")) else \
             "daily" if self._run_open("daily") and any(self.content.lent_look("daily").get(k) for k in ("theme", "style", "set")) else ""
         tracks = self.content.season_music_files() if want else []
         if wanted_look != self.run_look or want != self.season_look:
@@ -112,7 +113,8 @@ class OrderwickGame(App):
         elif self.online.enabled and not self.online.is_agent:
             self.content.sync_async()                            # at start and every 15 minutes
             self.avatar.refresh_async(self.online.client, self.online.nickname)
-        elif self.online.enabled:                                # an AI agent skips the content sync but still wears its avatar
+        elif self.online.enabled:                                # an AI agent still needs the look of the day / season and wears its avatar
+            self.content.sync_async()
             self.avatar.refresh_async(self.online.client, self.online.nickname)
         self.avatar.poll()
         self.sync_season_look()

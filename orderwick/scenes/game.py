@@ -45,6 +45,7 @@ class GameScene(Scene):
         self._closed = False        # the run is already finished/saved
 
         self.hud = HudView(app.assets)
+        self._hud_theme = app.assets.theme_dir
         self.scale = 1
         self.hud_hover: int | None = None
         self.hud_pressed: int | None = None
@@ -344,7 +345,14 @@ class GameScene(Scene):
             self._activate(targets[self.cursor_index % len(targets)])
 
     # ---- update --------------------------------------------------------------------------
+    def _follow_theme(self) -> None:
+        """A Season/Daily run applies its look after this scene exists: the HUD (panel, buttons, icons) is rebuilt in the new theme."""
+        if self.app.assets.theme_dir != self._hud_theme:
+            self._hud_theme = self.app.assets.theme_dir
+            self.hud = HudView(self.app.assets)
+
     def update(self, dt: float) -> None:
+        self._follow_theme()
         self.anim += dt
         if self.msg_ttl > 0:
             self.msg_ttl -= dt
@@ -418,7 +426,7 @@ class GameScene(Scene):
         reveal = int((now - self._speech_t0) * SPEECH_CPS)
         talking = reveal < total
         return HudData(
-            speaker=self.app.avatar.portrait.frame(talking, now) if messages else None,
+            speaker=self.app.avatar.shown.frame(talking, now) if messages else None,
             reveal=reveal,
             mode_title=s.mode.short_title,
             heading=f"LEVEL {label}" if s.mode.ranked or s.mode.id == "daily" else "BOARD",

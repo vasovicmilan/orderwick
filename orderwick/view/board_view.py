@@ -35,12 +35,22 @@ class BoardView:
         self._frame_shown: tuple | None = None
         self._lane_fx: lane_fx.LaneFx | None = None
         self._lane_key: tuple | None = None
-        self.skin = BoardSkin(assets.image(config.BOARD_IMAGE))
+        self._skin: BoardSkin | None = None
+        self._skin_source: pygame.Surface | None = None
         self.scale = 1
         self.origin = (0, 0)
         self.n_cols = 0
         self.n_free = 0
         self.capacity = 0
+
+    @property
+    def skin(self) -> BoardSkin:
+        """The board picture of the CURRENT theme: rebuilt when the theme changes while this view is alive (a Season or Daily run
+        applies its look after the game scene was created)."""
+        source = self.assets.image(config.BOARD_IMAGE)
+        if self._skin is None or source is not self._skin_source:
+            self._skin, self._skin_source = BoardSkin(source), source
+        return self._skin
 
     # ---- raspored ----------------------------------------------------------------
     @staticmethod

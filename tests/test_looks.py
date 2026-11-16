@@ -176,6 +176,52 @@ class Lent(ContentCase):
         again = self.store()                                          # a restart keeps it
         self.assertEqual(again.lent_look("season")["set"], "gifts")
 
+    def test_a_season_lends_its_avatar_as_the_speaker(self):
+        strip = pygame.Surface((128, 32), pygame.SRCALPHA)
+        strip.fill((10, 200, 10))
+        path = self.tmp / "strip.png"
+        pygame.image.save(strip, str(path))
+        data = path.read_bytes()
+        files = {"avatars/snowman_talk.png": data}
+        self.api.add(item("snowman", "avatar", files, acquisition="prize", price=0), files)
+        theme = {"themes/frost/board/board.png": png((9, 9, 9))}
+        self.api.add(item("frost", "board_theme", theme, acquisition="grant", price=0), theme)
+        self.api.live = {"code": "winter", "name": "Winter", "theme": {"code": "frost"}, "avatar": {"code": "snowman"}, "remainingSeconds": 3600}
+        store = self.store()
+        self.assertIsNone(store.lent_avatar("season"), "nothing before the first sync")
+        store.sync_async(force=True)
+        self.assertTrue(wait(store))
+        portrait = store.lent_avatar("season")
+        self.assertIsNotNone(portrait)
+        self.assertEqual(len(portrait.frames), 4)
+        self.assertEqual(store.lent_look("season")["avatar"], "snowman")
+        self.assertIsNone(store.lent_avatar("daily"), "only a season lends an avatar")
+
+
+class BoardFollowsTheTheme(unittest.TestCase):
+    """A Season / Daily run applies its look AFTER the game scene was created: the board picture and the HUD must follow."""
+
+    def setUp(self):
+        pygame.init()
+        pygame.display.set_mode((64, 64))
+        self.tmp = Path(tempfile.mkdtemp())
+        board = pygame.image.load(str(config.ASSETS_DIR / config.BOARD_IMAGE)).convert_alpha()
+        recolored = board.copy()
+        recolored.fill((90, 0, 0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        (self.tmp / "board").mkdir()
+        pygame.image.save(recolored, str(self.tmp / config.BOARD_IMAGE))
+        self.assets = AssetManager(config.SPRITES_DIR)
+
+    def test_the_board_picture_is_rebuilt_when_the_theme_changes_under_a_live_view(self):
+        from orderwick.view.board_view import BoardView
+        view = BoardView(self.assets)
+        first = view.skin
+        self.assertIs(view.skin, first, "the same theme keeps the same skin")
+        self.assets.set_theme(self.tmp)
+        self.assertIsNot(view.skin, first)
+        self.assets.set_theme(None)
+        self.assertIsNot(view.skin, first, "and going back builds it again")
+
 
 class Trophies(unittest.TestCase):
     def test_long_texts_are_cut_to_the_room_before_the_numbers(self):

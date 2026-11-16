@@ -73,6 +73,12 @@ class AvatarVoice:
             found = Portrait(blank)
         return found
 
+    override: Portrait | None = None                      # a Season lends its own avatar for the run: it beats the player's
+
+    @property
+    def shown(self) -> Portrait:
+        return self.override or self.portrait
+
     def refresh_async(self, client, nickname: str, force: bool = False) -> bool:
         """nickname "" = ask the server who the key belongs to first (an AI agent never saves its nickname locally)."""
         if client is None or (self.task is not None and not self.task.done):
