@@ -40,6 +40,10 @@ class Round:
         self.log: list[str] = []         # every successful event of this board ("c3>c5", "s0>c2", "u", "x"): the proof for the server
 
 
+class DailyRefused(Exception):
+    """The server will not hand out today's board again (one attempt a day): nothing is played, the player is told why."""
+
+
 class GameSession:
     """A whole run: level, score, total time. Independent of pygame."""
 
@@ -77,6 +81,8 @@ class GameSession:
             remote_round = self.remote.next_round(self, level)
             if remote_round is not None:
                 return remote_round
+            if getattr(self.remote, "refused", ""):         # the daily board has one attempt: never a look-alike offline board (it would be another board)
+                raise DailyRefused(self.remote.refused)
         spec = self.mode.spec_for(level)
         fixed = self.mode.seeded()
         if fixed is not None:                              # a reproducible board (the daily board): no time-based steps

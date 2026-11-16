@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--agent", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--server", default="")
     ap.add_argument("--key", default="", help="activation key from the website account page")
-    ap.add_argument("--mode", choices=["campaign", "hard", "daily", "tour"], default="hard",
+    ap.add_argument("--mode", choices=["campaign", "hard", "daily", "season", "tour"], default="hard",
                     help="tour = no game, only the screens; daily = today's daily board (one board, one result per day; online it is recorded on the server)")
     ap.add_argument("--tour", action="store_true", help="after the run visit the other screens (trophies, leaderboards, online, settings...)")
     ap.add_argument("--boards", type=int, default=1, help="boards to solve before the run is finished")

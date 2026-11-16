@@ -180,14 +180,24 @@ def run(args) -> int:
             press(pygame.K_RETURN); yield 1.5                    # the Daily screen: today's three tasks
             shot("daily"); yield 3.0
             press(pygame.K_RETURN)                                # "Play today's board"
+        elif args.mode == "season":
+            yield from menu_to(3)
+            press(pygame.K_RETURN); yield 1.5                    # the Season screen
+            shot("season"); yield 3.0
+            press(pygame.K_RETURN)                                # "Play the Season"
         elif args.mode == "hard":
             press(pygame.K_DOWN); yield 0.4 if not args.key else 0.01
             press(pygame.K_RETURN)
         else:
             press(pygame.K_RETURN); yield 1.0
             press(pygame.K_RETURN)
-        yield lambda: isinstance(scene(), GameScene)
-        yield lambda: not scene().loading
+        from orderwick.scenes.confirm import ConfirmScene
+        yield lambda: isinstance(scene(), ConfirmScene) or (isinstance(scene(), GameScene) and not scene().loading)
+        if isinstance(scene(), ConfirmScene):                        # the server refused the board (daily: one attempt a day)
+            say("the server did not give a board:", scene().detail)
+            shot("refused")
+            stats["refused"] = True
+            return 2
         say("board is ready, level", scene().rnd.level)
         shot("start")
 
@@ -215,7 +225,7 @@ def run(args) -> int:
                 player.new_board()
                 continue
             board = rnd.board
-            can_rescue = board.n_free < board.max_free and args.mode != "daily"      # the daily board has no rescue
+            can_rescue = board.n_free < board.max_free and args.mode not in ("daily", "season")      # the daily board has no rescue
             act = player.decide(observe(board), rnd.undo is not None, can_rescue)
             if args.debug and stats["moves"] < 14:
                 say("DEBUG", act, "sel", gs.selected, "free", board.free, "n", [len(c) for c in board.columns], gs.msg)

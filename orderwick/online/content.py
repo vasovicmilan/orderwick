@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -60,6 +61,7 @@ class ContentStore:
         self.state = self.store.load({"manifest": {}, "owned": [], "season": None, "daily": None})
         self.client = client
         self.task: BackgroundTask | None = None
+        self.lent_task: BackgroundTask | None = None
         self.last_sync = -SYNC_EVERY
         self.last_error = ""
         self._cards: set[str] = set()
@@ -214,8 +216,15 @@ class ContentStore:
         if not force and time.time() - self.last_sync < SYNC_EVERY:
             return False
         self.last_sync = time.time()
+        self.lent_task = BackgroundTask(self._lent_work)          # the look of the season / of today's board first: it is small, the owned items can take long
         self.task = BackgroundTask(self._work)
         return True
+
+    def _lent_work(self) -> dict:
+        manifest = self.client.content_manifest()
+        if manifest.get("schema") != SCHEMA:
+            raise OnlineError("old_client", "Update the game to get the newest content.")
+        return {"manifest": manifest, "season": self._season_work(manifest), "daily": self._daily_work(manifest)}
 
     def _work(self) -> dict:
         manifest = self.client.content_manifest()
@@ -296,13 +305,23 @@ class ContentStore:
         if rel.endswith(".png") and not data.startswith(PNG_SIGNATURE):
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_suffix(target.suffix + ".part")
-        tmp.write_bytes(data)
-        tmp.replace(target)
+        tmp = target.with_suffix(f"{target.suffix}.{threading.get_ident()}.part")      # two syncs may fetch the same file at once
+        try:
+            tmp.write_bytes(data)
+            tmp.replace(target)
+        except OSError:
+            return False
         return True
 
     def poll(self) -> bool:
         """Main thread, every frame. True when a sync just finished with new data (the game then refreshes its looks)."""
+        lent = self.lent_task
+        if lent is not None and lent.done:                       # the lent look arrived before the full sync: show it at once
+            self.lent_task = None
+            if lent.error is None and lent.result and self.task is not None and not self.task.done:
+                self.state.update(manifest=lent.result["manifest"], season=lent.result["season"], daily=lent.result["daily"])
+                self.register()
+                return True
         task = self.task
         if task is None or not task.done:
             return False

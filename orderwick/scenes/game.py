@@ -9,7 +9,7 @@ from .. import config
 from ..core.levels import LevelCatalog
 from ..core.models import Loc, col, slot
 from ..core.scoring import Scoring, format_time
-from ..core.session import GameSession
+from ..core.session import DailyRefused, GameSession
 from ..engine.audio import audio
 from ..engine.scene import Scene
 from ..engine.tasks import BackgroundTask
@@ -365,6 +365,11 @@ class GameScene(Scene):
             if not self.load_task.done:
                 return
             task, self.load_task = self.load_task, None
+            if isinstance(task.error, DailyRefused):
+                from .confirm import ConfirmScene
+                self.app.scenes.pop()                                     # back to the Daily screen, with the reason
+                self.app.scenes.push(ConfirmScene(self.app, "Daily board", str(task.error), "OK", lambda: None, no_text="Back"))
+                return
             if task.error is not None:
                 raise task.error
             self.session.start_round(task.result)

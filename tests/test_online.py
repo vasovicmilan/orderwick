@@ -341,12 +341,15 @@ class RemoteFlow(unittest.TestCase):
         session.start_round(session.create_round())            # local board
         self.assertEqual(session.round.level, 2)
 
-    def test_daily_done_is_explained(self):
-        api = FakeApi()
-        api.fail = OnlineError("daily_done", "done", 409)
-        session, _, _ = make_session(DailyBoardMode("2026-11-11"), api)
-        session.start_round(session.create_round())
-        self.assertIn("already solved today", session.remote.poll(session))
+    def test_a_daily_board_that_was_already_played_is_refused_not_replaced_by_another_board(self):
+        from orderwick.core.session import DailyRefused
+        for code, text in (("daily_done", "already solved today"), ("daily_used", "already played today")):
+            api = FakeApi()
+            api.fail = OnlineError(code, "x", 409)
+            session, _, _ = make_session(DailyBoardMode("2026-11-11"), api)
+            with self.assertRaises(DailyRefused) as caught:
+                session.create_round()
+            self.assertIn(text, str(caught.exception))
 
     def test_daily_uses_the_common_cards_so_everybody_sees_the_same_board(self):
         api = FakeApi()

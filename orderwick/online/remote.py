@@ -35,6 +35,7 @@ class RemoteRun:
         self.start_level = start_level
         self.run_id: str | None = None
         self.broken = False                  # True = continue offline, unranked
+        self.refused = ""                    # the daily board was already played today: no board at all (see GameSession.create_round)
         self._notice = ""                    # one message for the player, delivered once by poll()
         self._submit: BackgroundTask | None = None
         self._applied = True
@@ -53,9 +54,11 @@ class RemoteRun:
 
     def _fail(self, err: OnlineError, what: str) -> None:
         if err.code == "daily_done":
-            self._break("You already solved today's board online. This attempt is not ranked.")
+            self.refused = "You already solved today's board. The daily board gives one attempt a day; a new one comes at midnight UTC."
+            self._break(self.refused)
         elif err.code == "daily_used":
-            self._break("You already played today's board online. The daily board gives one attempt. This run is not ranked.")
+            self.refused = "You already played today's board. The daily board gives one attempt a day; a new one comes at midnight UTC."
+            self._break(self.refused)
         elif err.code == "network":
             self._break(f"Offline: {what} This run is not ranked.")
         else:
