@@ -32,6 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--home", default="", help="save folder (default: a fresh temporary one, so the run starts clean)")
     ap.add_argument("--nick", default="", help="nickname for the online account (3-12 letters, digits, - or _)")
     ap.add_argument("--size", default="1280x800", help="window size; the screen you record must be exactly this big")
+    ap.add_argument("--brain", choices=["visible", "sampling"], default="visible",
+                    help="visible = quick heuristics on the face-up cards; sampling = also imagines the hidden cards and plans (slower, for hard boards)")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--shots", default="", help="folder for screenshots of the important moments")

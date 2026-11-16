@@ -366,5 +366,17 @@ class Storage(unittest.TestCase):
             self.assertEqual(lb2.top("campaign")[0]["score"], 114)
 
 
+class DailyLevelFromServer(unittest.TestCase):
+    def test_the_servers_level_wins_over_the_local_formula(self):
+        from orderwick.core.daily_board import DailyBoardMode, daily_level
+        mode = DailyBoardMode("2026-11-16")
+        local = daily_level("2026-11-16")
+        server = 8 if local != 8 else 9                    # the server's table can say another level for the same day
+        mode.adopt_level(server)
+        self.assertEqual(mode.level_label(server), str(server))
+        self.assertEqual(mode.spec_for(server), LevelCatalog.spec(server))
+        self.assertEqual(mode.next_level(server), server)
+
+
 if __name__ == "__main__":
     unittest.main()

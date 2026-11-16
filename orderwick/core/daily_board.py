@@ -44,6 +44,11 @@ class DailyBoardMode(Mode):
     def initial_level(self) -> int:
         return self.level
 
+    def adopt_level(self, level: int) -> None:
+        """Online the server decides the day's level (its table can differ from this local formula): use the server's,
+        so the screen, the board size and the label all say the same thing."""
+        self.level = level
+
     def spec_for(self, level: int) -> LevelSpec:
         return LevelCatalog.spec(self.level)
 

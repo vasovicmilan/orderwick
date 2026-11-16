@@ -98,6 +98,9 @@ class RemoteRun:
         rnd = session.round
         if self.ranked and rnd is not None:
             session.level = rnd.level
+            adopt = getattr(session.mode, "adopt_level", None)
+            if adopt is not None:
+                adopt(rnd.level)
             if self._score is not None:
                 session.score = self._score
         self._score = None

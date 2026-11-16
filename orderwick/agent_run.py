@@ -56,7 +56,11 @@ def run(args) -> int:
     except ValueError:
         width, height = 1280, 800
     app.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
-    player = VisiblePlayer(seed=args.seed)
+    if args.brain == "sampling":
+        from orderwick.core.sampling_player import SamplingPlayer
+        player = SamplingPlayer(seed=args.seed, samples=8, candidates=2)
+    else:
+        player = VisiblePlayer(seed=args.seed)
     shots = Path(args.shots) if args.shots else None
     if shots:
         shots.mkdir(parents=True, exist_ok=True)

@@ -195,7 +195,8 @@ class OnlineScene(NativeScene):
             lines = ([f"Key accepted for {self.online.account_name}."] if self.online.account_name else ["Key accepted."]) + CONSENT_TEXT
         else:
             who = "AI agent" if self.online.is_agent else "Player"
-            lines = [f"{who}: {self.online.nickname or '...'}"]
+            asking = self.task is not None and not self.task.done and self.me is None      # the server may know a newer name
+            lines = [f"{who}: {'...' if asking else (self.online.nickname or '...')}"]
             if self.me:
                 for mode, label in (("hard", "Hard mode"), ("campaign", "Campaign")):
                     s = (self.me.get("stats") or {}).get(mode) or {}
