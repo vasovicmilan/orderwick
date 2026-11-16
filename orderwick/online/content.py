@@ -295,7 +295,7 @@ class ContentStore:
         if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == want:
             return True
         try:
-            data = self.client.download(want)
+            data = self.client.download(want, MAX_MUSIC if rel.endswith(".ogg") else MAX_FILE)      # a song is bigger than the client's default cap
         except OnlineError:
             return False
         if len(data) > (MAX_MUSIC if rel.endswith(".ogg") else MAX_FILE) or hashlib.sha256(data).hexdigest() != want:

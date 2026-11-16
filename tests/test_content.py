@@ -69,10 +69,12 @@ class FakeApi:
     def inventory(self):
         return {"owned": self.owned, "currency": {"name": "Coins", "balance": 5}}
 
-    def download(self, file_hash):
+    def download(self, file_hash, limit=600 * 1024):             # like the real client: the default cap is a picture's size
         self.downloads.append(file_hash)
         if file_hash not in self.blobs:
             raise OnlineError("http_404", "Not found", 404)
+        if len(self.blobs[file_hash]) > limit:
+            raise OnlineError("too_big", "A file was larger than allowed.")
         return self.blobs[file_hash]
 
 
@@ -126,6 +128,15 @@ class Sync(ContentCase):
         wait(store)
         self.assertIsNone(store.season, "a season whose time is over is not shown")
 
+
+    def test_a_real_sized_song_is_downloaded_though_it_is_bigger_than_a_picture(self):
+        song = {"music/long_song.ogg": b"OggS" + bytes(800 * 1024)}       # the season songs are 650-820 KB
+        self.api.add(item("long_song", "music", song, acquisition="free", price=0), song)
+        self.api.owned = ["long_song"]
+        store = self.store()
+        store.sync_async(force=True)
+        self.assertTrue(wait(store))
+        self.assertEqual([p.name for p in store.music_files()], ["long_song.ogg"])
 
     def test_songs_from_the_server_are_downloaded_and_offered_to_the_player(self):
         song = {"music/night_train.ogg": b"OggS" + bytes(3000)}
