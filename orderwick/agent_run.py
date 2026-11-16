@@ -191,8 +191,12 @@ def run(args) -> int:
         say("board is ready, level", scene().rnd.level)
         shot("start")
 
+        t_board = time.time()
+        tried = {}                                                   # (board, move) -> how many times the same move was played from the same position
         while stats["boards"] < args.boards:
             gs = scene()
+            if args.give_up_after and time.time() - t_board > args.give_up_after and not gs.rnd.won:
+                say("giving up: no solution found in", int(args.give_up_after), "seconds"); break
             if not isinstance(gs, GameScene):
                 say("left the game scene:", type(gs).__name__); return
             if gs.loading or gs.rescue_task is not None:
@@ -216,6 +220,10 @@ def run(args) -> int:
             if args.debug and stats["moves"] < 14:
                 say("DEBUG", act, "sel", gs.selected, "free", board.free, "n", [len(c) for c in board.columns], gs.msg)
             if act.kind == "move":
+                key = (repr([list(map(str, c)) for c in board.columns]), repr(board.free), str(act.src), str(act.dst))
+                tried[key] = tried.get(key, 0) + 1
+                if args.repeat_limit and tried[key] > args.repeat_limit:
+                    say(f"giving up: the same move from the same position for the {tried[key]}th time"); break
                 pk = lambda loc: (config.COL_KEYS if loc.kind == "col" else config.FREE_KEYS)[loc.index]  # noqa: E731
                 press(ord(pk(act.src)), pk(act.src)); yield args.pace
                 press(ord(pk(act.dst)), pk(act.dst)); yield args.pace
@@ -247,7 +255,14 @@ def run(args) -> int:
         shot("end")
         say("finishing the run")
         if args.mode == "daily":
-            press(pygame.K_RETURN); yield 2.0                        # "Back to menu" on the result screen
+            gs_now = scene()
+            if getattr(getattr(gs_now, "rnd", None), "won", False):
+                press(pygame.K_RETURN); yield 2.0                    # "Back to menu" on the result screen
+            else:                                                    # not solved: end the run so the attempt is sent to the server
+                press(ord("q"), "q"); yield 1.5                      # "End the run?"
+                shot("end_confirm")
+                press(pygame.K_DOWN); yield 1.0                      # focus is on "No, go back": move to "Yes, end it"
+                press(pygame.K_RETURN); yield 3.0
             yield from to_menu()
             if args.tour:
                 yield from tour_all()

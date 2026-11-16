@@ -239,7 +239,7 @@ class OnlineService:
 
         def on_finished(session=None, **_):
             if session is not None and session.remote is not None:
-                session.remote.finish_async()
+                session.remote.finish_async(session)
         events.subscribe("round_won", on_won)
         events.subscribe("run_finished", on_finished)
 

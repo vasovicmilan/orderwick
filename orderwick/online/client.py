@@ -138,8 +138,11 @@ class ApiClient:
     def restart(self, run_id: str, events: list[str]) -> dict:
         return self.request("POST", f"/api/v1/runs/{run_id}/restart", {"events": events})
 
-    def finish(self, run_id: str) -> dict:
-        return self.request("POST", f"/api/v1/runs/{run_id}/finish", {})
+    def finish(self, run_id: str, events: list[str] | None = None, elapsed: float = 0.0) -> dict:
+        """Closes the run. For a daily board ended before it was solved the moves go along: the server keeps the attempt with the
+        points for the columns sorted so far."""
+        body = {"events": events, "elapsed": round(elapsed, 2)} if events is not None else {}
+        return self.request("POST", f"/api/v1/runs/{run_id}/finish", body)
 
     def leaderboard(self, mode: str, who: str = "all") -> dict:
         return self.request("GET", f"/api/v1/leaderboard/{mode}?who={who}&limit=20", auth=False)

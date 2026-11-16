@@ -28,6 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="tour = no game, only the screens; daily = today's daily board (one board, one result per day; online it is recorded on the server)")
     ap.add_argument("--tour", action="store_true", help="after the run visit the other screens (trophies, leaderboards, online, settings...)")
     ap.add_argument("--boards", type=int, default=1, help="boards to solve before the run is finished")
+    ap.add_argument("--repeat-limit", type=int, default=0, help="end the run when the same move is played from the same position more than this many times (0 = never)")
+    ap.add_argument("--give-up-after", type=float, default=0, help="seconds on one board after which the agent ends the run (0 = never)")
     ap.add_argument("--pace", type=float, default=0.22, help="seconds between two key presses (how fast the moves look)")
     ap.add_argument("--home", default="", help="save folder (default: a fresh temporary one, so the run starts clean)")
     ap.add_argument("--nick", default="", help="nickname for the online account (3-12 letters, digits, - or _)")

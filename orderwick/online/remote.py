@@ -151,17 +151,21 @@ class RemoteRun:
                     notice = (notice + "  " if notice else "") + "New: " + ", ".join(names)
         return notice
 
-    def finish_async(self) -> None:
+    def finish_async(self, session=None) -> None:
         if not self.ranked:
             return
         run_id = self.run_id
         submit = self._submit
+        rnd = getattr(session, "round", None)
+        ended = None                                     # a daily board ended before it was solved: the moves so far are its result
+        if self.mode_id == "daily" and rnd is not None and not rnd.won:
+            ended = (list(rnd.log), rnd.elapsed)
 
         def work():
             if submit is not None:
                 submit.join()
             try:
-                self.client.finish(run_id)          # run-count achievements are picked up by the next progress sync (Trophies screen)
+                self.client.finish(run_id, *(ended or ()))          # run-count achievements are picked up by the next progress sync (Trophies screen)
             except OnlineError:
                 pass                       # the score is already on the server; closing the run is a courtesy
         BackgroundTask(work)

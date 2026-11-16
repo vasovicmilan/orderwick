@@ -72,8 +72,8 @@ class FakeApi:
         self.score = max(0, self.score - 50)
         return {"score": self.score, "round": self._board(self.level)}
 
-    def finish(self, run_id):
-        self.sent.append(("finish", run_id))
+    def finish(self, run_id, events=None, elapsed=0.0):
+        self.sent.append(("finish", run_id) if events is None else ("finish", run_id, list(events), elapsed))
         return {}
 
     def progress(self):
@@ -355,6 +355,18 @@ class RemoteFlow(unittest.TestCase):
         b = round_from_payload(payload, None, daily=True)
         self.assertEqual(a.palette, b.palette)
         self.assertEqual(a.board.kinds(), payload["kinds"])
+
+    def test_ending_an_unsolved_daily_board_sends_the_moves_so_far(self):
+        from orderwick.core.daily_board import DailyBoardMode
+        api = FakeApi()
+        session, events, _ = make_session(DailyBoardMode("2026-11-16"), api)
+        rnd = session.create_round()
+        session.start_round(rnd)
+        rnd.log.extend(["c0>s0", "u"])
+        rnd.elapsed = 12.5
+        events.emit("run_finished", session=session)
+        time.sleep(0.3)
+        self.assertEqual(api.sent[-1], ("finish", "run-1", ["c0>s0", "u"], 12.5))
 
 
 if __name__ == "__main__":

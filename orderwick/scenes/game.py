@@ -191,7 +191,8 @@ class GameScene(Scene):
         from .confirm import ConfirmScene
         s = self.session
         self.app.scenes.push(ConfirmScene(
-            self.app, "End the run?", f"Score {s.score}   Level {s.peak}",
+            self.app, "End the run?",
+            "Today's attempt ends. Sorted columns still count." if s.mode.id == "daily" and s.remote is not None and s.remote.ranked else f"Score {s.score}   Level {s.peak}",
             "Yes, end it", self._finish))
 
     def on_quit(self) -> None:
